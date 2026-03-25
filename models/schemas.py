@@ -10,6 +10,8 @@ class ServiceStatus(str, Enum):
 class Service(BaseModel):
     name: str
     status: ServiceStatus
+    latency: float = 0.0
+    error_rate: float = 0.0
 
 class ActionType(str, Enum):
     RESTART_SERVICE = "restart_service"
@@ -33,6 +35,8 @@ class State(BaseModel):
     total_cost: float
     system_stability: float
     risky_actions_count: int
+    dependencies: Dict[str, List[str]] = {}
+    system_strain: float = 0.0
 
 class StepResult(BaseModel):
     state: State
@@ -51,6 +55,8 @@ class EpisodeResult(BaseModel):
     bad_actions: int
     system_health_penalty: float
     total_cost: float
+    system_strain: float = 0.0
+    optimal_bonus: float = 0.0
 
 class TaskDifficulty(str, Enum):
     EASY = "easy"

@@ -73,11 +73,29 @@ async def step(task_id: str, action: Action):
     )
 
 # Get state
-@app.get("/state/{task_id}", response_model=State)
+@app.get("/state/{task_id}")
 async def get_state(task_id: str):
     if task_id not in sessions:
         raise HTTPException(status_code=404, detail="Session not found")
-    return sessions[task_id].get_state()
+    
+    state = sessions[task_id].get_state()
+    
+    # Transform to required structured format
+    return {
+        "services": {
+            s.name: {
+                "status": s.status.value,
+                "latency": s.latency,
+                "error_rate": s.error_rate
+            } for s in state.services
+        },
+        "alerts": state.alerts,
+        "logs": state.logs,
+        "cost": state.total_cost,
+        "stability": state.system_stability,
+        "step": state.time_step,
+        "dependencies": state.dependencies
+    }
 
 # Grade
 @app.post("/grade/{task_id}", response_model=EpisodeResult)
