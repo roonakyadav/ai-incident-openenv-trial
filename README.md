@@ -8,19 +8,37 @@ app_port: 7860
 pinned: false
 ---
 
-# AI Incident Response Environment
+# 🚨 AI Incident Response Environment (OpenEnv)
 
-This is a FastAPI-based OpenEnv environment for evaluating AI agents on incident response tasks.
+A realistic, deterministic environment to evaluate how well AI agents handle **cascading system failures** in production-like conditions.
 
-## Endpoints
+---
 
-- `/` → health check  
-- `/tasks` → list tasks  
-- `/reset/{task_id}` → start session  
-- `/step/{task_id}` → take action  
-- `/state/{task_id}` → get state  
-- `/grade/{task_id}` → evaluate  
+## 🚨 Problem
 
-## Example
+Modern systems don’t fail in isolation.
 
-Go to `/docs` to interact with the API.
+A single issue (e.g., database slowdown) can trigger:
+- Authentication failures  
+- Payment disruptions  
+- Frontend degradation  
+
+Yet most AI benchmarks:
+- Use **toy problems**
+- Ignore **dependencies and delays**
+- Fail to test **real decision-making under pressure**
+
+---
+
+## 💡 Why This Matters
+
+In real-world incident response:
+
+- Fixing the wrong component can **worsen the system**
+- Acting too early or too late affects **cost and stability**
+- Ignoring issues allows failures to **cascade**
+
+This environment tests whether an AI agent can:
+- Identify the **true root cause**
+- Handle **misleading signals**
+- Make **efficient, sequential decisions**
