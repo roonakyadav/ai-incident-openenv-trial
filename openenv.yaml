@@ -1,0 +1,17 @@
+name: ai-incident-env
+version: "0.1.0"
+description: "AI Operations Incident Response Environment for SRE/DevOps scenarios"
+entry_point: api.main:app
+tasks:
+  - id: easy-auth-down
+    difficulty: easy
+  - id: medium-payments-degraded
+    difficulty: medium
+  - id: hard-cascading-failure
+    difficulty: hard
+reward_logic:
+  correct_fix: 0.5
+  diagnosis: 0.3
+  useless_action: -0.2
+  wrong_fix: -0.5
+  time_penalty: -0.1
