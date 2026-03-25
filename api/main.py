@@ -5,6 +5,10 @@ from env.tasks import get_task, TASKS
 from env.grader import IncidentGrader
 from typing import Dict, List
 
+@app.get("/")
+def root():
+    return {"status": "ok", "message": "AI Incident Response Environment running"}
+    
 app = FastAPI(title="AI Operations Incident Response Environment")
 
 TASK_ALIASES = {
