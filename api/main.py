@@ -117,10 +117,6 @@ async def grade(task_id: str):
 async def health_check():
     return {"status": "healthy"}
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=7860)
-
 # Get trajectory
 @app.get("/trajectory/{task_id}")
 async def get_trajectory(task_id: str):
@@ -187,3 +183,7 @@ async def run_baseline():
 
 # Serve Static UI (at the end)
 app.mount("/", StaticFiles(directory="static", html=True), name="static")
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=7860)
