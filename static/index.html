@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Incident Response Environment</title>
+    <style>
+        body {
+            background-color: #121212;
+            color: #e0e0e0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .container {
+            width: 100%;
+            max-width: 900px;
+        }
+        h1 {
+            color: #fefdff;
+            margin-bottom: 30px;
+        }
+        .controls {
+            background-color: #1e1e1e;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        label {
+            font-size: 0.9em;
+            color: #03dac6;
+        }
+        select, input, button {
+            background-color: #2c2c2c;
+            color: #e0e0e0;
+            border: 1px solid #444;
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 1em;
+        }
+        button {
+            cursor: pointer;
+            transition: background-color 0.2s;
+            background-color: #3700b3;
+            border: none;
+            font-weight: bold;
+        }
+        button:hover {
+            background-color: #6200ee;
+        }
+        button.secondary {
+            background-color: #03dac6;
+            color: #000;
+        }
+        button.secondary:hover {
+            background-color: #018786;
+        }
+        .actions-row {
+            display: flex;
+            gap: 10px;
+            grid-column: 1 / -1;
+            margin-top: 10px;
+        }
+        #output {
+            background-color: #1e1e1e;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #333;
+            height: 500px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            font-family: 'Cascadia Code', 'Courier New', Courier, monospace;
+            font-size: 0.9em;
+            color: #03dac6;
+        }
+        .status-indicator {
+            margin-top: 10px;
+            font-size: 0.8em;
+            color: #888;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>AI Incident Response Environment</h1>
+        
+        <div class="controls">
+            <div class="control-group">
+                <label for="taskSelect">Task</label>
+                <select id="taskSelect">
+                    <option value="easy">Easy</option>
+                    <option value="medium">Medium</option>
+                    <option value="hard">Hard</option>
+                </select>
+            </div>
+            
+            <div class="control-group">
+                <label for="actionType">Action Type</label>
+                <select id="actionType">
+                    <option value="restart_service">restart_service</option>
+                    <option value="scale">scale</option>
+                    <option value="optimize_db">optimize_db</option>
+                    <option value="check_logs">check_logs</option>
+                    <option value="ignore">ignore</option>
+                </select>
+            </div>
+
+            <div class="control-group">
+                <label for="actionTarget">Target Service</label>
+                <input type="text" id="actionTarget" placeholder="e.g. auth, db, payments">
+            </div>
+
+            <div class="actions-row">
+                <button onclick="resetTask()">Reset</button>
+                <button onclick="stepTask()">Step</button>
+                <button onclick="getState()">Get State</button>
+                <button class="secondary" onclick="runBaseline()">Run Baseline</button>
+            </div>
+        </div>
+
+        <div id="output">Results will appear here...</div>
+        <div class="status-indicator" id="status">Ready.</div>
+    </div>
+
+    <script>
+        const outputEl = document.getElementById('output');
+        const statusEl = document.getElementById('status');
+
+        function updateOutput(data) {
+            outputEl.textContent = JSON.stringify(data, null, 2);
+            outputEl.scrollTop = 0;
+        }
+
+        function setStatus(msg) {
+            statusEl.textContent = msg;
+        }
+
+        async function apiCall(path, method = 'GET', body = null) {
+            setStatus(`Calling ${method} ${path}...`);
+            try {
+                const options = { method };
+                if (body) {
+                    options.headers = { 'Content-Type': 'application/json' };
+                    options.body = JSON.stringify(body);
+                }
+                const response = await fetch(path, options);
+                const data = await response.json();
+                updateOutput(data);
+                setStatus(`${method} ${path} successful.`);
+            } catch (error) {
+                updateOutput({ error: error.message });
+                setStatus(`Error calling ${path}.`);
+            }
+        }
+
+        async function resetTask() {
+            const task = document.getElementById('taskSelect').value;
+            await apiCall(`/reset/${task}`, 'POST');
+        }
+
+        async function stepTask() {
+            const task = document.getElementById('taskSelect').value;
+            const action_type = document.getElementById('actionType').value;
+            const target = document.getElementById('actionTarget').value || 'none';
+            
+            console.log(`Stepping task: ${task}, action: ${action_type}, target: ${target}`);
+            
+            setStatus(`Calling POST /step/${task}...`);
+            try {
+                const response = await fetch(`/step/${task}`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ action_type, target })
+                });
+                const data = await response.json();
+                updateOutput(data);
+                setStatus(`Step successful. Auto-refreshing state...`);
+                
+                // Automatically call /state to get the updated view
+                await getState();
+
+            } catch (error) {
+                updateOutput({ error: error.message });
+                setStatus(`Error during step.`);
+            }
+        }
+
+        async function getState() {
+            const task = document.getElementById('taskSelect').value;
+            await apiCall(`/state/${task}`);
+        }
+
+        async function runBaseline() {
+            await apiCall('/baseline');
+        }
+    </script>
+</body>
+</html>

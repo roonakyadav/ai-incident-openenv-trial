@@ -5,14 +5,10 @@ from env.tasks import get_task, TASKS
 from env.grader import IncidentGrader
 from typing import Dict
 from baseline.baseline_agent import BaselineAgent
+from fastapi.staticfiles import StaticFiles
 
 # ✅ DEFINE APP FIRST (CRITICAL)
 app = FastAPI(title="AI Operations Incident Response Environment")
-
-# Root health check
-@app.get("/")
-def root():
-    return {"status": "ok", "message": "AI Incident Response Environment running"}
 
 # Task aliases
 TASK_ALIASES = {
@@ -151,3 +147,6 @@ async def run_baseline():
         "tasks": results,
         "average_score": round(avg_score, 3)
     }
+
+# Serve Static UI (at the end)
+app.mount("/", StaticFiles(directory="static", html=True), name="static")

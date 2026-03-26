@@ -21,12 +21,14 @@ class IncidentEnv:
         self.history = []
         self.bad_actions = 0
         self.total_cost = 0.0
-        self.system_stability = 1.0
+        # self.system_stability = 1.0 # This is now calculated
         self.risky_actions_count = 0
         self.system_strain = 0.0
         self.dependencies = self._initialize_dependencies()
         self.grader = IncidentGrader()
         self._update_metrics()
+        self._update_alerts() # Initial alerts based on status
+        self.system_stability = self._calculate_stability() # Correctly calculate initial stability
 
     def _initialize_dependencies(self) -> Dict[str, List[str]]:
         if self.task.id == "hard-cascading-failure":
@@ -109,6 +111,7 @@ class IncidentEnv:
         self._apply_cascading_failures()
         self._evolve_env()
         self._update_metrics()
+        self._update_alerts() # Recompute alerts based on current state
         self.system_stability = self._calculate_stability()
         self._update_logs(action, reward_info)
         
@@ -302,19 +305,16 @@ class IncidentEnv:
                 if auth_service and auth_service.status == ServiceStatus.DOWN:
                     if len(self.history) >= recovery_threshold and self.history[-recovery_threshold].action_type == ActionType.OPTIMIZE_DB:
                         auth_service.status = ServiceStatus.UP
-                        # Clear related alerts
-                        self.alerts = [a for a in self.alerts if "Auth" not in a]
                 
                 elif auth_service and auth_service.status == ServiceStatus.UP:
                     if payments_service and payments_service.status == ServiceStatus.DEGRADED:
                         # Ensure at least 1-2 steps have passed since auth became UP
                         if len(self.history) >= (recovery_threshold + 1):
                             payments_service.status = ServiceStatus.UP
-                            self.alerts = [a for a in self.alerts if "Payments" not in a]
             
             # If root cause is fixed, clear root cause alerts
-            if db_service and db_service.status == ServiceStatus.UP:
-                self.alerts = [a for a in self.alerts if "Critical dependency" not in a and "DB" not in a]
+            # Handled by _update_alerts
+            pass
         
         # Deterministic evolution logic for medium difficulty
         elif self.task.difficulty == TaskDifficulty.MEDIUM:
@@ -331,7 +331,6 @@ class IncidentEnv:
                 if down_steps >= 2:
                     if payment_service and payment_service.status == ServiceStatus.UP:
                         payment_service.status = ServiceStatus.DEGRADED
-                        self.alerts.append("Payments service performance degrading due to auth failure")
 
     def _all_services_up(self) -> bool:
         return all(s.status == ServiceStatus.UP for s in self.services)
@@ -339,3 +338,17 @@ class IncidentEnv:
     def _calculate_system_health(self) -> float:
         up_services = sum(1 for s in self.services if s.status == ServiceStatus.UP)
         return up_services / len(self.services) if self.services else 0.0
+
+    def _update_alerts(self):
+        # Recompute alerts based on current service states
+        new_alerts = []
+        for service in self.services:
+            if service.status == ServiceStatus.DOWN:
+                new_alerts.append(f"CRITICAL: {service.name} is down")
+            elif service.status == ServiceStatus.DEGRADED:
+                new_alerts.append(f"WARNING: {service.name} degraded")
+        
+        # Add special alerts based on system stability if needed
+        # (Though requirements specify service states, we can keep it clean)
+        
+        self.alerts = new_alerts
