@@ -19,6 +19,7 @@ class IncidentEnv:
         self.time_step = 0
         self.max_steps = task.max_steps
         self.history = []
+        self.state_history = []  # Store trajectory for debugging and evaluation
         self.bad_actions = 0
         self.total_cost = 0.0
         # self.system_stability = 1.0 # This is now calculated
@@ -29,6 +30,8 @@ class IncidentEnv:
         self._update_metrics()
         self._update_alerts() # Initial alerts based on status
         self.system_stability = self._calculate_stability() # Correctly calculate initial stability
+        self.previous_stability = self.system_stability  # Store previous stability for reward calculation
+        self.is_done = False  # Track episode termination state
 
     def _initialize_dependencies(self) -> Dict[str, List[str]]:
         if self.task.id == "hard-cascading-failure":
@@ -80,16 +83,40 @@ class IncidentEnv:
         )
 
     def step(self, action: Action) -> Dict[str, Any]:
+        # Check if episode has already terminated
+        if hasattr(self, "is_done") and self.is_done:
+            return {
+                "state": self.get_state(),
+                "reward": 0.0,
+                "done": True,
+                "info": {
+                    "message": "Episode already completed. Please reset.",
+                    "type": "terminated"
+                }
+            }
+        
         self.time_step += 1
         self.history.append(action)
+        
+        # Store previous state before applying action
+        prev_state = self.get_state()
+        
+        # Store previous stability for reward calculation
+        self.previous_stability = self.system_stability
         
         # Add cost
         self.total_cost += self.ACTION_COSTS.get(action.action_type, 0.0)
         
+        # Apply action and get result
         reward_info = self._apply_action(action)
         
-        if reward_info["type"] in ["wrong_fix", "useless_action"]:
+        # Safely extract action type and increment bad_actions if needed
+        action_type = reward_info.get("type", "unknown")
+        
+        if action_type in ["wrong_fix", "useless_action"]:
             self.bad_actions += 1
+            # Log the bad action for debugging
+            self.logs.append(f"Bad action detected: {action_type}")
             # Initial instability penalty for wrong/useless actions
             self.system_stability = max(0.0, self.system_stability - 0.1)
             # Increase system strain
@@ -122,14 +149,76 @@ class IncidentEnv:
             self._all_services_up()
         )
         
-        reward = 0.0 
+        # Update episode termination state
+        self.is_done = done
+        
+        # Add recovery log if all services are UP
+        if self._all_services_up() and done:
+            self.logs.append("System fully recovered. Episode complete.")
+        
+        # Calculate meaningful reward signal
+        reward = self._calculate_reward(reward_info, action)
+        
+        # Get state after applying action
+        curr_state = self.get_state()
+        
+        # Store trajectory step
+        self.state_history.append({
+            "action": action,
+            "state_before": prev_state,
+            "state_after": curr_state,
+            "reward_info": reward_info
+        })
 
         return {
-            "state": self.get_state(),
+            "state": curr_state,
             "reward": reward,
             "done": done,
             "info": reward_info
         }
+
+    def _calculate_reward(self, reward_info: Dict[str, Any], action: Action) -> float:
+        """Calculate meaningful reward signal based on action outcomes and system state."""
+        reward = 0.0
+        
+        # Base reward for action type
+        if reward_info["type"] == "correct_fix":
+            reward += 0.3
+        elif reward_info["type"] == "diagnosis":  # CHECK_LOGS
+            reward += 0.1
+        elif reward_info["type"] == "useless_action":
+            reward -= 0.2
+        elif reward_info["type"] == "wrong_fix":
+            reward -= 0.4
+        
+        # Time penalty per step
+        reward -= 0.05
+        
+        # Bonus for stability improvement
+        stability_change = self.system_stability - self.previous_stability
+        if stability_change > 0:
+            reward += 0.2
+        
+        # Bonus for all services UP
+        if self._all_services_up():
+            reward += 0.3
+        
+        # Penalty for significant system strain increase
+        strain_change = self.system_strain - getattr(self, 'previous_strain', 0.0)
+        if strain_change > 0.2:
+            reward -= 0.2
+        
+        # Update previous_strain for next step
+        self.previous_strain = self.system_strain
+        
+        # Penalty for excessive bad actions
+        if self.bad_actions > 2:
+            reward -= 0.3
+        
+        # Clip reward between [-1, 1]
+        reward = max(-1.0, min(1.0, reward))
+        
+        return reward
 
     def _calculate_stability(self) -> float:
         # up -> +1, degraded -> +0.5, down -> 0
@@ -185,8 +274,14 @@ class IncidentEnv:
                         dep_service.status = ServiceStatus.DEGRADED
                 elif root_service.status == ServiceStatus.UP:
                     # Natural recovery: if root is UP and dependent is DEGRADED, it recovers
+                    # ONLY if the dependent was originally degraded due to this root cause
+                    # and not due to its own issues (requires correct action to fix)
                     if dep_service.status == ServiceStatus.DEGRADED:
-                        dep_service.status = ServiceStatus.UP
+                        # Check if this degradation was solely due to this root cause
+                        # For hard task: payments degradation is from auth being down, which is from db
+                        # So payments needs auth to be up first, then it can recover
+                        # This prevents premature recovery when root cause isn't fully resolved
+                        pass  # Recovery handled by _evolve_env with proper sequencing
 
     def _update_logs(self, action: Action, reward_info: Dict[str, Any]):
         new_logs = []
@@ -219,7 +314,25 @@ class IncidentEnv:
         # Generic state logs
         if self.system_stability < 0.5:
             new_logs.append("System instability reaching critical levels")
+        
+        # Add misleading logs for hard task (deterministic pattern)
+        if self.task.id == "hard-cascading-failure":
+            # Every 2 steps, add a misleading log that blames downstream services
+            if self.time_step % 2 == 0:
+                misleading_logs = [
+                    "WARN: Payments service instability detected (possible root cause)",
+                    "ERROR: Frontend experiencing cascading failures from payments",
+                    "WARN: Auth service showing signs of failure - investigate immediately",
+                    "INFO: Recommendation: Focus on stabilizing payments service first"
+                ]
+                # Use deterministic selection based on time_step
+                log_index = (self.time_step // 2) % len(misleading_logs)
+                new_logs.append(misleading_logs[log_index])
             
+            # At step 3, add another strong misdirection
+            if self.time_step == 3:
+                new_logs.append("CRITICAL: Multiple services failing - prioritize immediate recovery over root cause analysis")
+        
         # Add to logs and limit to last 10
         self.logs.extend(new_logs)
         self.logs = self.logs[-10:]
@@ -234,6 +347,21 @@ class IncidentEnv:
             root_cause_service = next((s for s in self.services if s.name == "db"), None)
         elif self.task.id == "medium-payments-degraded":
             root_cause_service = next((s for s in self.services if s.name == "payments"), None)
+        
+        # Check if agent is repeatedly targeting wrong services (for hard task)
+        if self.task.id == "hard-cascading-failure" and root_cause_service and root_cause_service.status != ServiceStatus.UP:
+            # Count how many times agent targeted non-root-cause services
+            wrong_target_count = 0
+            for past_action in self.history:
+                if past_action.target != "db" and past_action.action_type not in [ActionType.CHECK_LOGS, ActionType.IGNORE]:
+                    wrong_target_count += 1
+            
+            # If this is another wrong action and we already have multiple wrong actions
+            if wrong_target_count >= 2 and action.target != "db" and action.action_type not in [ActionType.CHECK_LOGS, ActionType.IGNORE]:
+                # Increase system strain more aggressively
+                self.system_strain += 0.15
+                # Add penalty log
+                self.logs.append("Repeated incorrect mitigation detected - focusing on symptoms instead of root cause")
 
         if action.action_type == ActionType.RESTART_SERVICE:
             if not target_service:
@@ -249,6 +377,9 @@ class IncidentEnv:
             if target_service.status == ServiceStatus.DOWN:
                 target_service.status = ServiceStatus.UP
                 return {"type": "correct_fix", "target": action.target}
+            elif target_service.status == ServiceStatus.DEGRADED:
+                # Restart does NOT fix degraded state - requires correct action (e.g., SCALE, OPTIMIZE_DB)
+                return {"type": "wrong_fix", "target": action.target}
             else:
                 return {"type": "useless_action", "target": action.target}
         
@@ -259,6 +390,9 @@ class IncidentEnv:
             # Scaling while root cause exists is expensive but might work partially
             if root_cause_service and root_cause_service.status != ServiceStatus.UP and action.target != root_cause_service.name:
                 self.total_cost += 2.0 # Extra cost for scaling symptom instead of root cause
+                # Additional strain for treating symptoms
+                if self.task.id == "hard-cascading-failure":
+                    self.system_strain += 0.1
                 
             if target_service.status == ServiceStatus.DEGRADED:
                 target_service.status = ServiceStatus.UP

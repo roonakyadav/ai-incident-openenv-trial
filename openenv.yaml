@@ -2,16 +2,44 @@ name: ai-incident-env
 version: "0.1.0"
 description: "AI Operations Incident Response Environment for SRE/DevOps scenarios"
 entry_point: api.main:app
+
+evaluation:
+  type: "deterministic"
+  description: "Task-driven evaluation using explicit success and failure conditions with trajectory-based reward shaping."
+
 tasks:
   - id: easy-auth-down
     difficulty: easy
+    goal: "Restore all services to UP state"
   - id: medium-payments-degraded
     difficulty: medium
+    goal: "Stabilize system with minimal cost"
   - id: hard-cascading-failure
     difficulty: hard
-reward_logic:
-  correct_fix: 0.5
-  diagnosis: 0.3
-  useless_action: -0.2
-  wrong_fix: -0.5
-  time_penalty: -0.1
+    goal: "Resolve cascading failures by fixing root cause"
+
+action_space:
+  type: "discrete"
+  actions:
+    - restart_service
+    - scale
+    - optimize_db
+    - check_logs
+    - ignore
+
+observation_space:
+  includes:
+    - services (status, latency, error_rate)
+    - logs
+    - alerts
+    - system_stability
+    - system_strain
+    - dependencies
+    - cost
+
+episode:
+  termination_conditions:
+    - max_steps reached
+    - all services healthy
+    - system_stability below threshold
+    - too many bad actions

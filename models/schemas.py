@@ -71,3 +71,6 @@ class Task(BaseModel):
     initial_logs: List[str]
     initial_alerts: List[str]
     max_steps: int
+    goal: str = ""
+    success_conditions: Dict[str, Any] = {}
+    failure_conditions: Dict[str, Any] = {}

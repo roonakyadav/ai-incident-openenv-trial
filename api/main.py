@@ -3,7 +3,7 @@ from models.schemas import Action, StepResult, State, EpisodeResult
 from env.core import IncidentEnv
 from env.tasks import get_task, TASKS
 from env.grader import IncidentGrader
-from typing import Dict
+from typing import Dict, List, Any
 from baseline.baseline_agent import BaselineAgent
 from fastapi.staticfiles import StaticFiles
 
@@ -60,7 +60,27 @@ async def step(task_id: str, action: Action):
         raise HTTPException(status_code=404, detail="Session not found. Call reset first.")
 
     env = sessions[task_id]
+    
+    # Prevent further actions after episode has terminated
+    if env.is_done:
+        raise HTTPException(
+            status_code=400,
+            detail="Episode already terminated. Please reset."
+        )
+    
     result = env.step(action)
+    
+    # If episode just terminated, add termination message
+    if result["done"]:
+        return StepResult(
+            state=result["state"],
+            reward=result["reward"],
+            done=True,
+            info={
+                **result["info"],
+                "message": "Episode terminated"
+            }
+        )
 
     return StepResult(
         state=result["state"],
@@ -77,22 +97,8 @@ async def get_state(task_id: str):
     
     state = sessions[task_id].get_state()
     
-    # Transform to required structured format
-    return {
-        "services": {
-            s.name: {
-                "status": s.status.value,
-                "latency": s.latency,
-                "error_rate": s.error_rate
-            } for s in state.services
-        },
-        "alerts": state.alerts,
-        "logs": state.logs,
-        "cost": state.total_cost,
-        "stability": state.system_stability,
-        "step": state.time_step,
-        "dependencies": state.dependencies
-    }
+    # Return full state consistent with State schema
+    return state.model_dump()
 
 # Grade
 @app.post("/grade/{task_id}", response_model=EpisodeResult)
@@ -105,6 +111,28 @@ async def grade(task_id: str):
 
     final_score = grader.grade_episode(env.get_state(), env.task)
     return final_score
+
+# Get trajectory
+@app.get("/trajectory/{task_id}")
+async def get_trajectory(task_id: str):
+    if task_id not in sessions:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    env = sessions[task_id]
+
+    # Convert Pydantic models to dicts for JSON serialization
+    return {
+        "steps": [
+            {
+                "action": step["action"].model_dump(),
+                "state_before": step["state_before"].model_dump(),
+                "state_after": step["state_after"].model_dump(),
+                "reward_info": step["reward_info"]
+            }
+            for step in env.state_history
+        ],
+        "total_steps": len(env.state_history)
+    }
 
 # Baseline
 @app.get("/baseline")
