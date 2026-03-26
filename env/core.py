@@ -237,6 +237,13 @@ class IncidentEnv:
         critical_alerts = sum(1 for a in self.alerts if "CRITICAL" in a or "ERROR" in a)
         stability = base_stability - (0.1 * critical_alerts)
         
+        # Bonus for fixing root cause early 
+        if any( 
+            s.name == "db" and s.status == ServiceStatus.UP 
+            for s in self.services 
+        ): 
+            stability += 0.1 
+        
         # Incorporate history-based penalties (bad actions and risky actions)
         # Strain penalty: reduces stability linearly
         stability -= (0.1 * self.system_strain)
@@ -248,15 +255,18 @@ class IncidentEnv:
             
         return max(0.0, min(1.0, stability))
 
+    def _get_service(self, name: str) -> Service:
+        return next((s for s in self.services if s.name == name), None)
+
     def _apply_cascading_failures(self):
         # Deterministic cascading failures based on dependencies
         for root, dependents in self.dependencies.items():
-            root_service = next((s for s in self.services if s.name == root), None)
+            root_service = self._get_service(root)
             if not root_service:
                 continue
                 
             for dep_name in dependents:
-                dep_service = next((s for s in self.services if s.name == dep_name), None)
+                dep_service = self._get_service(dep_name)
                 if not dep_service:
                     continue
                 
@@ -282,6 +292,25 @@ class IncidentEnv:
                         # So payments needs auth to be up first, then it can recover
                         # This prevents premature recovery when root cause isn't fully resolved
                         pass  # Recovery handled by _evolve_env with proper sequencing
+
+        # Recovery for downstream dependencies
+        for service in self.services:
+            if service.status == ServiceStatus.DEGRADED:
+                # Find all services that this service depends on
+                # (We need to invert the self.dependencies map which is root -> dependents)
+                upstreams = [root for root, deps in self.dependencies.items() if service.name in deps]
+                
+                if upstreams:
+                    dependencies_healthy = all(
+                        self._get_service(dep).status == ServiceStatus.UP
+                        for dep in upstreams
+                    )
+
+                    if dependencies_healthy:
+                        service.status = ServiceStatus.UP
+                        service.latency = 20
+                        service.error_rate = 0.01
+                        self.logs.append(f"{service.name.capitalize()} recovered as dependencies stabilized")
 
     def _update_logs(self, action: Action, reward_info: Dict[str, Any]):
         new_logs = []

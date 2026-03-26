@@ -85,6 +85,31 @@
             font-size: 0.9em;
             color: #03dac6;
         }
+        .evaluation-panel {
+            background-color: #1e1e1e;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #333;
+            margin-top: 20px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+        }
+        .eval-item {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        .eval-label {
+            font-size: 0.8em;
+            color: #03dac6;
+            text-transform: uppercase;
+        }
+        .eval-value {
+            font-size: 1.1em;
+            font-weight: bold;
+            color: #ffffff;
+        }
         .status-indicator {
             margin-top: 10px;
             font-size: 0.8em;
@@ -131,16 +156,71 @@
         </div>
 
         <div id="output">Results will appear here...</div>
+        
+        <div class="evaluation-panel" id="evaluationPanel" style="display: none;">
+            <div class="eval-item">
+                <div class="eval-label">Reward</div>
+                <div class="eval-value" id="rewardValue">-</div>
+            </div>
+            <div class="eval-item">
+                <div class="eval-label">Status</div>
+                <div class="eval-value" id="doneStatus">-</div>
+            </div>
+            <div class="eval-item">
+                <div class="eval-label">Info Type</div>
+                <div class="eval-value" id="infoType">-</div>
+            </div>
+            <div class="eval-item" id="infoMessageGroup">
+                <div class="eval-label">Info Message</div>
+                <div class="eval-value" id="infoMessage">-</div>
+            </div>
+        </div>
+
         <div class="status-indicator" id="status">Ready.</div>
     </div>
 
     <script>
         const outputEl = document.getElementById('output');
         const statusEl = document.getElementById('status');
+        const evaluationPanel = document.getElementById('evaluationPanel');
+        const rewardValue = document.getElementById('rewardValue');
+        const doneStatus = document.getElementById('doneStatus');
+        const infoType = document.getElementById('infoType');
+        const infoMessage = document.getElementById('infoMessage');
+        const infoMessageGroup = document.getElementById('infoMessageGroup');
 
         function updateOutput(data) {
             outputEl.textContent = JSON.stringify(data, null, 2);
             outputEl.scrollTop = 0;
+        }
+
+        function updateEvaluation(data) {
+            if (data && typeof data.reward !== 'undefined') {
+                evaluationPanel.style.display = 'grid';
+                rewardValue.textContent = `Reward: ${data.reward.toFixed(3)}`;
+                doneStatus.textContent = data.done ? "Status: Completed" : "Status: Running";
+                
+                if (data.info) {
+                    const typeMap = { 
+                        "correct_fix": "✅ Correct Fix", 
+                        "wrong_fix": "❌ Wrong Fix", 
+                        "useless_action": "⚠️ No Impact", 
+                        "diagnosis": "🔍 Diagnosis" 
+                    };
+                    infoType.textContent = typeMap[data.info.type] || data.info.type || '-';
+                    if (data.info.message) {
+                        infoMessage.textContent = data.info.message;
+                        infoMessageGroup.style.display = 'flex';
+                    } else {
+                        infoMessageGroup.style.display = 'none';
+                    }
+                } else {
+                    infoType.textContent = '-';
+                    infoMessageGroup.style.display = 'none';
+                }
+            } else {
+                evaluationPanel.style.display = 'none';
+            }
         }
 
         function setStatus(msg) {
@@ -159,14 +239,17 @@
                 const data = await response.json();
                 updateOutput(data);
                 setStatus(`${method} ${path} successful.`);
+                return data;
             } catch (error) {
                 updateOutput({ error: error.message });
                 setStatus(`Error calling ${path}.`);
+                return null;
             }
         }
 
         async function resetTask() {
             const task = document.getElementById('taskSelect').value;
+            evaluationPanel.style.display = 'none';
             await apiCall(`/reset/${task}`, 'POST');
         }
 
@@ -186,10 +269,13 @@
                 });
                 const data = await response.json();
                 updateOutput(data);
+                updateEvaluation(data);
                 setStatus(`Step successful. Auto-refreshing state...`);
                 
                 // Automatically call /state to get the updated view
-                await getState();
+                // We don't want state update to clear the evaluation panel
+                const stateData = await getState();
+                updateOutput(stateData);
 
             } catch (error) {
                 updateOutput({ error: error.message });
@@ -199,10 +285,11 @@
 
         async function getState() {
             const task = document.getElementById('taskSelect').value;
-            await apiCall(`/state/${task}`);
+            return await apiCall(`/state/${task}`);
         }
 
         async function runBaseline() {
+            evaluationPanel.style.display = 'none';
             await apiCall('/baseline');
         }
     </script>
