@@ -8,9 +8,20 @@ app_port: 7860
 pinned: false
 ---
 
+---
+
+title: AI Incident OpenEnv
+emoji: 🤖
+colorFrom: blue
+colorTo: purple
+sdk: docker
+app_port: 7860
+pinned: false
+-------------
+
 # 🚨 AI Incident Response Environment (OpenEnv)
 
-A realistic, deterministic environment to evaluate how well AI agents handle **cascading system failures** in production-like conditions.
+A **deterministic benchmark environment** for evaluating how well AI agents handle **cascading failures, root-cause diagnosis, and sequential decision-making** in distributed systems.
 
 ---
 
@@ -18,15 +29,18 @@ A realistic, deterministic environment to evaluate how well AI agents handle **c
 
 Modern systems don’t fail in isolation.
 
-A single issue (e.g., database slowdown) can trigger:
-- Authentication failures  
-- Payment disruptions  
-- Frontend degradation  
+A single issue (e.g., database degradation) can trigger:
+
+* Authentication failures
+* Payment disruptions
+* Frontend degradation
 
 Yet most AI benchmarks:
-- Use **toy problems**
-- Ignore **dependencies and delays**
-- Fail to test **real decision-making under pressure**
+
+* use **toy environments**
+* ignore **dependencies**
+* lack **real-world failure dynamics**
+* reward **surface-level actions instead of reasoning**
 
 ---
 
@@ -34,68 +48,242 @@ Yet most AI benchmarks:
 
 In real-world incident response:
 
-- Fixing the wrong component can **worsen the system**
-- Acting too early or too late affects **cost and stability**
-- Ignoring issues allows failures to **cascade**
+* Fixing the wrong component can **worsen the system**
+* Acting inefficiently increases **cost and recovery time**
+* Misinterpreting logs leads to **incorrect decisions**
+* Ignoring cascading effects causes **system-wide failure**
 
-This environment tests whether an AI agent can:
-- Identify the **true root cause**
-- Handle **misleading signals**
-- Make **efficient, sequential decisions**
+This environment evaluates whether an AI agent can:
 
-## ⚙️ Why This Environment is Hard
-
-This is not a simple fix-the-error task.
-
-The environment introduces real-world complexity:
-
-### 🔗 Cascading Failures
-Failures propagate across services:
-- DB issues → Auth failures → Payment disruption → Frontend degradation  
-Agents must identify the **true root cause**, not just symptoms.
-
-### ⏳ Delayed Recovery
-Fixing a service does not instantly restore the system.
-Recovery happens **gradually**, requiring patience and correct sequencing.
-
-### ⚠️ Misleading Signals
-Multiple services may appear broken, but:
-- fixing downstream services too early leads to **penalties**
-- incorrect actions increase **system strain**
-
-### 🧠 Long-Term Consequences
-Bad decisions accumulate:
-- increased latency
-- slower recovery
-- reduced final score
-
-### 🚫 No Passive Success
-Doing nothing (`ignore`) is penalized unless the system is already stabilizing.
+* Identify the **true root cause**
+* Handle **misleading signals**
+* Execute **correct action sequences**
+* Optimize for **stability + cost**
 
 ---
 
-👉 The agent must:
-- diagnose correctly  
-- act in the right order  
-- avoid unnecessary actions  
-- manage long-term system health  
+## ⚙️ Core Features
 
-This makes the task closer to **real incident response**, not a toy benchmark.
+### 🔗 Cascading Failures
 
-## 📊 Evaluation Results
+Failures propagate through dependencies:
 
-The environment clearly separates agent performance:
+```
+DB → Auth → Payments → Frontend
+```
 
-| Agent Type | Behavior | Score |
-|----------|--------|------|
-| Bad Agent | Random / incorrect fixes | 0.14 |
-| Lazy Agent | Frequent ignore() | 0.07 |
-| Smart Agent | Correct sequence + stabilization | 1.00 |
+Fixing downstream services without solving the root cause leads to **penalties**.
+
+---
+
+### ⏳ Delayed Recovery
+
+Recovery is **not instant**.
+
+* Fixing root cause ≠ immediate system recovery
+* Services stabilize gradually
+* Correct sequencing is required
+
+---
+
+### ⚠️ Misleading Signals (Hard Mode)
+
+Logs and alerts may point to **wrong components**.
+
+Agents must:
+
+* avoid reacting blindly
+* reason about dependencies
+* ignore deceptive signals
+
+---
+
+### 📉 System Strain & Bad Actions
+
+Incorrect actions increase:
+
+* system strain
+* latency
+* instability
+
+Repeated bad decisions are **heavily penalized**.
+
+---
+
+### 🧠 Sequential Decision Making
+
+This is not a one-step problem.
+
+Agents must:
+
+* plan actions
+* act step-by-step
+* observe outcomes
+* adapt strategy
+
+---
+
+## 🎯 Task Design
+
+| Task   | Goal                                  | Key Challenge    |
+| ------ | ------------------------------------- | ---------------- |
+| Easy   | Restore all services                  | Basic recovery   |
+| Medium | Stabilize system efficiently          | Action selection |
+| Hard   | Fix cascading failure (DB root cause) | Causal reasoning |
+
+---
+
+## 🧪 Evaluation
+
+### Reward System
+
+The environment provides **dense feedback**:
+
+* ✅ Correct fix → positive reward
+* ❌ Wrong fix → penalty
+* 🚫 Useless action → penalty
+* ⏱️ Time penalty per step
+* 📈 Stability improvement → bonus
+
+---
+
+### Grading Criteria
+
+Final score is based on:
+
+* Task success conditions
+* Efficiency (steps taken)
+* Cost of actions
+* System stability
+* Failure penalties
+
+---
+
+## 📊 Example Results
+
+| Agent Type  | Behavior                 | Score |
+| ----------- | ------------------------ | ----- |
+| Bad Agent   | Random actions           | 0.14  |
+| Lazy Agent  | Frequent `ignore()`      | 0.07  |
+| Smart Agent | Correct causal reasoning | 1.00  |
 
 ### 🔍 Insight
 
-- Wrong actions significantly degrade performance  
-- Passive behavior is penalized  
-- Optimal strategies are strongly rewarded  
+* Wrong actions degrade system rapidly
+* Passive agents fail consistently
+* Correct reasoning is strongly rewarded
 
-This demonstrates that the environment **accurately evaluates decision-making quality**, not just task completion.
+👉 The benchmark **separates weak vs strong agents clearly**
+
+---
+
+## 🧱 Environment Design
+
+### Services
+
+* `db` — root dependency
+* `auth` — depends on DB
+* `payments` — depends on auth
+* `frontend` — depends on payments
+
+---
+
+### State Representation
+
+Each step returns:
+
+* service status (up / degraded / down)
+* latency + error rate
+* logs + alerts
+* system stability
+* system strain
+* action history
+
+---
+
+### Actions
+
+* `restart_service`
+* `scale`
+* `optimize_db`
+* `check_logs`
+* `ignore`
+
+---
+
+## 🔌 API Endpoints
+
+| Endpoint             | Description            |
+| -------------------- | ---------------------- |
+| `/reset/{task}`      | Initialize environment |
+| `/step/{task}`       | Execute action         |
+| `/state/{task}`      | Get current state      |
+| `/grade/{task}`      | Compute final score    |
+| `/baseline`          | Run baseline agent     |
+| `/trajectory/{task}` | Full action history    |
+
+---
+
+## 🖥️ UI Features
+
+* Interactive control panel
+* Real-time system state
+* Logs + alerts visualization
+* Evaluation panel showing:
+
+  * reward
+  * status (running / completed)
+  * action feedback
+
+---
+
+## 🧠 What This Benchmark Tests
+
+This is NOT just task completion.
+
+It evaluates:
+
+* causal reasoning
+* root-cause analysis
+* decision sequencing
+* robustness to misleading data
+* cost-aware optimization
+
+---
+
+## 🚀 Deployment
+
+* Backend: FastAPI
+* Containerized with Docker
+* Hosted on Hugging Face Spaces
+
+---
+
+## ⚠️ Limitations
+
+* Single-agent environment
+* Fixed service topology
+* Deterministic (no randomness)
+
+---
+
+## 🔮 Future Work
+
+* Multi-agent coordination
+* Dynamic scenario generation
+* Partial observability
+* Larger service graphs
+
+---
+
+## ✅ Summary
+
+This project introduces a **realistic, deterministic benchmark** for evaluating AI agents in incident response scenarios.
+
+Unlike traditional benchmarks, it focuses on:
+
+* **causal reasoning over pattern matching**
+* **decision quality over action execution**
+* **system thinking over isolated fixes**
+
+👉 The result is a benchmark that actually measures **how an agent thinks**, not just what it outputs.
