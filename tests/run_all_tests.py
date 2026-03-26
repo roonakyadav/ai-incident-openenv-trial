@@ -4,7 +4,7 @@ import os
 import time
 from typing import Dict, Any, List
 
-API_BASE_URL = "http://localhost:8000"
+API_BASE_URL = "http://localhost:7860"
 
 def log(msg: str):
     print(f"[TEST] {msg}")

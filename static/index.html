@@ -277,6 +277,10 @@
                 const stateData = await getState();
                 updateOutput(stateData);
 
+                if (data.done) {
+                    setStatus(`Episode completed! Reward: ${data.reward.toFixed(3)}`);
+                }
+
             } catch (error) {
                 updateOutput({ error: error.message });
                 setStatus(`Error during step.`);

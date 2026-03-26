@@ -112,6 +112,15 @@ async def grade(task_id: str):
     final_score = grader.grade_episode(env.get_state(), env.task)
     return final_score
 
+# Health check for Hugging Face Spaces
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy"}
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=7860)
+
 # Get trajectory
 @app.get("/trajectory/{task_id}")
 async def get_trajectory(task_id: str):

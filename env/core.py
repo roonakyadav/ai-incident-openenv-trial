@@ -53,17 +53,14 @@ class IncidentEnv:
 
     def _update_metrics(self):
         for service in self.services:
-            # Latency increases with system strain
-            strain_latency_penalty = self.system_strain * 100.0
-            
             if service.status == ServiceStatus.UP:
-                service.latency = 20.0 + strain_latency_penalty
-                service.error_rate = 0.01 + (self.system_strain * 0.05)
+                service.latency = 20 + (10 * self.system_strain)
+                service.error_rate = 0.01 + (0.05 * self.system_strain)
             elif service.status == ServiceStatus.DEGRADED:
-                service.latency = 500.0 + (strain_latency_penalty * 2)
-                service.error_rate = 0.15 + (self.system_strain * 0.1)
-            elif service.status == ServiceStatus.DOWN:
-                service.latency = 0.0
+                service.latency = 200 + (100 * self.system_strain)
+                service.error_rate = 0.15 + (0.1 * self.system_strain)
+            else:
+                service.latency = 1000.0
                 service.error_rate = 1.0
 
     def get_state(self) -> State:
