@@ -4,6 +4,7 @@ from env.core import IncidentEnv
 from env.tasks import get_task, TASKS
 from env.grader import IncidentGrader
 from typing import Dict
+from baseline.baseline_agent import BaselineAgent
 
 # ✅ DEFINE APP FIRST (CRITICAL)
 app = FastAPI(title="AI Operations Incident Response Environment")
@@ -108,3 +109,45 @@ async def grade(task_id: str):
 
     final_score = grader.grade_episode(env.get_state(), env.task)
     return final_score
+
+# Baseline
+@app.get("/baseline")
+async def run_baseline():
+    agent = BaselineAgent()
+    results = {}
+    total_score = 0.0
+    
+    # Define tasks to run (using full IDs)
+    task_ids = ["easy-auth-down", "medium-payments-degraded", "hard-cascading-failure"]
+    
+    for full_id in task_ids:
+        task = get_task(full_id)
+        if not task:
+            continue
+            
+        env = IncidentEnv(task)
+        grader = IncidentGrader()
+        
+        # Run episode
+        done = False
+        while not done and env.time_step < env.max_steps:
+            state = env.get_state()
+            action = agent.decide_action(state)
+            result = env.step(action)
+            done = result["done"]
+            
+        # Grade
+        episode_result = grader.grade_episode(env.get_state(), env.task)
+        score = episode_result.final_score
+        
+        # Map back to simple names for output
+        short_name = full_id.split("-")[0]
+        results[short_name] = round(score, 3)
+        total_score += score
+        
+    avg_score = total_score / len(results) if results else 0.0
+    
+    return {
+        "tasks": results,
+        "average_score": round(avg_score, 3)
+    }
