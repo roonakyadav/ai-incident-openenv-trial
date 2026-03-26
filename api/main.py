@@ -184,6 +184,13 @@ async def run_baseline():
 # Serve Static UI (at the end)
 app.mount("/", StaticFiles(directory="static", html=True), name="static")
 
+@app.on_event("startup")
+async def startup_event():
+    print("========================================")
+    print("🚀 APP STARTED SUCCESSFULLY")
+    print("📡 SERVER RUNNING ON PORT 7860")
+    print("========================================")
+
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=7860)
+    uvicorn.run(app, host="0.0.0.0", port=7860, log_level="info")
