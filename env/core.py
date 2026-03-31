@@ -1,3 +1,4 @@
+import random
 from typing import List, Dict, Any
 from models.schemas import State, Service, ServiceStatus, Action, ActionType, Task, TaskDifficulty
 from env.grader import IncidentGrader
@@ -11,8 +12,9 @@ class IncidentEnv:
         ActionType.IGNORE: 0.0
     }
 
-    def __init__(self, task: Task):
+    def __init__(self, task: Task, seed: int = 42):
         self.task = task
+        self.random = random.Random(seed)
         self.services = [Service(**s.model_dump()) for s in task.initial_services]
         self.logs = list(task.initial_logs)
         self.alerts = list(task.initial_alerts)
@@ -25,6 +27,7 @@ class IncidentEnv:
         # self.system_stability = 1.0 # This is now calculated
         self.risky_actions_count = 0
         self.system_strain = 0.0
+        self.previous_strain = 0.0  # Initialize previous strain for reward calculation
         self.dependencies = self._initialize_dependencies()
         self.grader = IncidentGrader()
         self._update_metrics()
@@ -62,6 +65,17 @@ class IncidentEnv:
             else:
                 service.latency = 1000.0
                 service.error_rate = 1.0
+
+            # Add controlled noise (±5%)
+            noise_latency = self.random.uniform(-0.05, 0.05)
+            noise_error = self.random.uniform(-0.05, 0.05)
+            
+            service.latency *= (1 + noise_latency)
+            service.error_rate *= (1 + noise_error)
+
+            # Ensure bounds
+            service.latency = max(1.0, service.latency)
+            service.error_rate = max(0.0, min(1.0, service.error_rate))
 
     def get_state(self) -> State:
         return State(
@@ -201,7 +215,7 @@ class IncidentEnv:
             reward += 0.3
         
         # Penalty for significant system strain increase
-        strain_change = self.system_strain - getattr(self, 'previous_strain', 0.0)
+        strain_change = self.system_strain - self.previous_strain
         if strain_change > 0.2:
             reward -= 0.2
         
@@ -277,7 +291,8 @@ class IncidentEnv:
                         if dep_name == "frontend":
                             dep_service.status = ServiceStatus.DEGRADED
                 elif root_service.status == ServiceStatus.DEGRADED:
-                    if dep_service.status == ServiceStatus.UP:
+                    # Cascading degradation (85% probability for more realism)
+                    if dep_service.status == ServiceStatus.UP and self.random.random() < 0.85:
                         dep_service.status = ServiceStatus.DEGRADED
                 elif root_service.status == ServiceStatus.UP:
                     # Natural recovery: if root is UP and dependent is DEGRADED, it recovers
@@ -320,6 +335,16 @@ class IncidentEnv:
         elif reward_info["type"] == "useless_action":
             new_logs.append(f"Action {action.action_type} on {action.target} had no impact")
             
+        # Add a random neutral log (25% chance)
+        if self.random.random() < 0.25:
+            neutral_logs = [
+                "INFO: Background job completed successfully",
+                "INFO: System health check passed",
+                "INFO: Routine log rotation completed",
+                "INFO: Minor latency variation observed in secondary cluster"
+            ]
+            new_logs.append(self.random.choice(neutral_logs))
+
         # Log cascading effects
         for s in self.services:
             if s.status == ServiceStatus.DEGRADED:
@@ -341,7 +366,7 @@ class IncidentEnv:
         if self.system_stability < 0.5:
             new_logs.append("System instability reaching critical levels")
         
-        # Add misleading logs for hard task (deterministic pattern)
+        # Add misleading logs for hard task (seeded randomness)
         if self.task.id == "hard-cascading-failure":
             # Every 2 steps, add a misleading log that blames downstream services
             if self.time_step % 2 == 0:
@@ -351,9 +376,8 @@ class IncidentEnv:
                     "WARN: Auth service showing signs of failure - investigate immediately",
                     "INFO: Recommendation: Focus on stabilizing payments service first"
                 ]
-                # Use deterministic selection based on time_step
-                log_index = (self.time_step // 2) % len(misleading_logs)
-                new_logs.append(misleading_logs[log_index])
+                # Use deterministic randomness based on seed
+                new_logs.append(self.random.choice(misleading_logs))
             
             # At step 3, add another strong misdirection
             if self.time_step == 3:
@@ -457,9 +481,11 @@ class IncidentEnv:
             auth_service = next((s for s in self.services if s.name == "auth"), None)
             payments_service = next((s for s in self.services if s.name == "payments"), None)
 
-            # Sequential recovery with 1-step delay per level
+            # Sequential recovery with 1-step delay per level (±1 step variation)
             # Recovery is slower if strain is high
-            recovery_threshold = 2 if self.system_strain < 0.5 else 3
+            base_threshold = 2 if self.system_strain < 0.5 else 3
+            recovery_threshold = base_threshold + self.random.randint(-1, 1)
+            recovery_threshold = max(1, recovery_threshold) # Ensure at least 1 step
             
             if db_service and db_service.status == ServiceStatus.UP:
                 if auth_service and auth_service.status == ServiceStatus.DOWN:

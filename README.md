@@ -257,6 +257,35 @@ It evaluates:
 * Containerized with Docker
 * Hosted on Hugging Face Spaces
 
+### Setup Instructions
+
+1.  **Clone the repository:**
+    ```bash
+    git clone https://github.com/roonakyadav/meta-hackathon.git
+    cd meta-hackathon
+    ```
+
+2.  **Build and run the Docker container:**
+    ```bash
+    docker build -t ai-incident-env .
+    docker run -p 7860:7860 ai-incident-env
+    ```
+
+3.  **Run the baseline agent:**
+    ```bash
+    # In a new terminal
+    source venv/bin/activate
+    python baseline/run_agent.py
+    ```
+
+### Baseline Results
+
+| Task                      | Rule-Based Reward | LLM (Groq) Reward |
+| ------------------------- | ----------------- | ----------------- |
+| `easy-auth-down`          | 0.75              | 0.85              |
+| `medium-payments-degraded`| 0.75              | 0.75              |
+| `hard-cascading-failure`  | 1.20              | 1.20              |
+
 ---
 
 ## ⚠️ Limitations

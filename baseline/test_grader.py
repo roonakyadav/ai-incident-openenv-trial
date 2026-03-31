@@ -1,7 +1,8 @@
+import os
 import requests
 import json
 
-API_BASE_URL = "http://localhost:8000"
+API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")
 TASK_ID = "hard-cascading-failure"
 
 def run_simulation(actions):

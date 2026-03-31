@@ -32,7 +32,7 @@ async def list_tasks():
 
 # Reset environment
 @app.post("/reset/{task_id}")
-async def reset(task_id: str):
+async def reset(task_id: str, seed: int = 42):
     actual_id = TASK_ALIASES.get(task_id.lower(), task_id)
     task = get_task(actual_id)
 
@@ -47,7 +47,7 @@ async def reset(task_id: str):
             }
         )
 
-    env = IncidentEnv(task)
+    env = IncidentEnv(task, seed=seed)
     sessions[task_id] = env
     graders[task_id] = IncidentGrader()
 

@@ -7,13 +7,15 @@ class IncidentGrader:
         efficiency_score = self._calculate_efficiency_score(state, task)
         cost_efficiency_score = self._calculate_cost_efficiency_score(state)
         stability_score = state.system_stability
+        sequence_score = self._calculate_sequence_score(state, task)
         
-        # Apply failure condition penalties
+        # Apply failure condition penalties with sequence score integration
         final_score = (
-            0.5 * success_score +
+            0.45 * success_score +
             0.2 * efficiency_score +
             0.2 * cost_efficiency_score +
-            0.1 * stability_score
+            0.1 * stability_score +
+            0.05 * sequence_score
         )
         
         # Apply failure condition penalties
@@ -37,8 +39,81 @@ class IncidentGrader:
             system_health_penalty=health_penalty,
             total_cost=state.total_cost,
             system_strain=state.system_strain,
-            optimal_bonus=0.0  # Removed optimal bonus as it's now part of success conditions
+            optimal_bonus=sequence_score  # Using sequence_score for optimal_bonus for visibility
         )
+
+    def _calculate_sequence_score(self, state: State, task: Task) -> float:
+        """Calculate score based on action sequence and timing."""
+        if not state.history or task.max_steps <= 0:
+            return 0.0
+            
+        score = 0.0
+        
+        # a) Early root cause reward: find first occurrence of correct root cause action
+        root_cause_index = -1
+        for i, action in enumerate(state.history):
+            is_correct = False
+            if task.id == "hard-cascading-failure":
+                if action.action_type == ActionType.OPTIMIZE_DB and action.target == "db":
+                    is_correct = True
+            elif task.id == "medium-payments-degraded":
+                if action.target == "payments" and action.action_type in [ActionType.SCALE, ActionType.RESTART_SERVICE]:
+                    is_correct = True
+            else:
+                # Easy tasks: find initial down service and check for restart
+                for service in task.initial_services:
+                    if service.status == ServiceStatus.DOWN:
+                        if action.action_type == ActionType.RESTART_SERVICE and action.target == service.name:
+                            is_correct = True
+                            break
+            
+            if is_correct:
+                root_cause_index = i
+                break
+        
+        if root_cause_index != -1:
+            score += max(0.0, 1.0 - (root_cause_index / task.max_steps))
+            
+        # b) Penalize delayed recovery: If all services become UP
+        # In this env, the episode ends when all services are UP, so state.time_step is the index
+        all_up = all(s.status == ServiceStatus.UP for s in state.services)
+        if all_up:
+            recovery_index = state.time_step
+            score += max(0.0, 1.0 - (recovery_index / task.max_steps))
+            
+        # c) Penalize excessive useless/wrong actions early
+        # Since we don't have per-step state, we approximate "bad actions" 
+        # as any action that's not diagnosis, ignore, or correct fix
+        bad_actions_early = 0
+        half_max_steps = task.max_steps / 2
+        for i, action in enumerate(state.history):
+            if i >= half_max_steps:
+                break
+                
+            # Check if this was a correct fix (reusing logic from part a)
+            is_correct = False
+            if task.id == "hard-cascading-failure":
+                if action.action_type == ActionType.OPTIMIZE_DB and action.target == "db":
+                    is_correct = True
+            elif task.id == "medium-payments-degraded":
+                if action.target == "payments" and action.action_type in [ActionType.SCALE, ActionType.RESTART_SERVICE]:
+                    is_correct = True
+            else:
+                for service in task.initial_services:
+                    if service.status == ServiceStatus.DOWN:
+                        if action.action_type == ActionType.RESTART_SERVICE and action.target == service.name:
+                            is_correct = True
+                            break
+            
+            # If not correct fix and not diagnosis/ignore, it's potentially bad
+            if not is_correct and action.action_type not in [ActionType.CHECK_LOGS, ActionType.IGNORE]:
+                bad_actions_early += 1
+        
+        if half_max_steps > 0:
+            penalty = bad_actions_early / half_max_steps
+            score -= penalty * 0.5
+            
+        return max(0.0, min(1.0, score))
 
     def _evaluate_success_conditions(self, state: State, task: Task) -> float:
         """Evaluate success based on task.success_conditions with equal weight per condition."""
@@ -63,41 +138,71 @@ class IncidentGrader:
         """Evaluate a single success condition and return score between 0.0 and 1.0."""
         
         if condition_name == "all_services_up":
-            # Check if all services are UP
-            all_up = all(s.status == ServiceStatus.UP for s in state.services)
-            return 1.0 if all_up else 0.0
+            # Replace with proportional score: (# services UP) / (total services)
+            if not state.services:
+                return 1.0
+            up_count = sum(1 for s in state.services if s.status == ServiceStatus.UP)
+            return up_count / len(state.services)
         
         elif condition_name == "no_service_down":
-            # Ensure no service is DOWN
-            none_down = all(s.status != ServiceStatus.DOWN for s in state.services)
-            return 1.0 if none_down else 0.0
+            # Replace with proportional score: (# services NOT DOWN) / (total services)
+            if not state.services:
+                return 1.0
+            not_down_count = sum(1 for s in state.services if s.status != ServiceStatus.DOWN)
+            return not_down_count / len(state.services)
         
         elif condition_name == "max_error_rate":
-            # Check if all error rates are below threshold
-            threshold = condition_value
-            all_below = all(s.error_rate < threshold for s in state.services)
-            return 1.0 if all_below else 0.0
+            # Score inversely proportional to error rate: threshold / actual_error_rate
+            # Average across services
+            if not state.services:
+                return 1.0
+            threshold = float(condition_value)
+            scores = []
+            for s in state.services:
+                if s.error_rate <= threshold:
+                    scores.append(1.0)
+                elif s.error_rate == 0: # Should not happen if it's > threshold
+                    scores.append(1.0)
+                else:
+                    scores.append(max(0.0, min(1.0, threshold / s.error_rate)))
+            return sum(scores) / len(scores)
         
         elif condition_name == "latency_threshold":
-            # Check if all latencies are below threshold
-            threshold = condition_value
-            all_below = all(s.latency < threshold for s in state.services)
-            return 1.0 if all_below else 0.0
+            # Score inversely proportional to latency: threshold / actual_latency
+            # Average across services
+            if not state.services:
+                return 1.0
+            threshold = float(condition_value)
+            scores = []
+            for s in state.services:
+                if s.latency <= threshold:
+                    scores.append(1.0)
+                elif s.latency == 0:
+                    scores.append(1.0)
+                else:
+                    scores.append(max(0.0, min(1.0, threshold / s.latency)))
+            return sum(scores) / len(scores)
         
         elif condition_name == "cost_limit":
-            # Check if total cost is within limit
-            cost_limit = condition_value
-            return 1.0 if state.total_cost <= cost_limit else 0.0
+            # Score = max(0.0, 1.0 - (total_cost / cost_limit))
+            cost_limit = float(condition_value)
+            if cost_limit <= 0:
+                return 1.0 if state.total_cost <= 0 else 0.0
+            return max(0.0, min(1.0, 1.0 - (state.total_cost / cost_limit)))
         
         elif condition_name == "stability_score":
-            # Check if system stability meets threshold
-            threshold = condition_value
-            return 1.0 if state.system_stability >= threshold else 0.0
+            # Score = min(1.0, state.system_stability / threshold)
+            threshold = float(condition_value)
+            if threshold <= 0:
+                return 1.0
+            return max(0.0, min(1.0, state.system_stability / threshold))
         
         elif condition_name == "strain_limit":
-            # Check if system strain is within limit
-            strain_limit = condition_value
-            return 1.0 if state.system_strain <= strain_limit else 0.0
+            # Score = max(0.0, 1.0 - (state.system_strain / strain_limit))
+            strain_limit = float(condition_value)
+            if strain_limit <= 0:
+                return 1.0 if state.system_strain <= 0 else 0.0
+            return max(0.0, min(1.0, 1.0 - (state.system_strain / strain_limit)))
         
         elif condition_name == "root_cause_fixed":
             # Check if correct root cause action exists in history
@@ -181,16 +286,6 @@ class IncidentGrader:
         
         return capped_score
 
-    def _calculate_root_cause_score(self, state: State, task: Task) -> float:
-        if task.difficulty == "hard":
-            if any(action.action_type == ActionType.OPTIMIZE_DB and action.target == "db" for action in state.history):
-                return 1.0
-            return 0.0
-        else:
-            if all(s.status == ServiceStatus.UP for s in state.services):
-                 return 1.0
-            return 0.0
-
     def _calculate_efficiency_score(self, state: State, task: Task) -> float:
         if task.max_steps == 0:
             return 0.0
@@ -211,19 +306,3 @@ class IncidentGrader:
             health_penalty = 0.2 * (current_down_services - initial_down_services)
             
         return damage_score, health_penalty
-
-    def _calculate_ignore_penalty(self, state: State, root_cause_score: float) -> float:
-        if root_cause_score > 0:
-            return 0.0
-            
-        ignore_count = sum(1 for a in state.history if a.action_type == ActionType.IGNORE)
-        return 0.1 * ignore_count 
-
-    def _calculate_optimal_bonus(self, state: State, task: Task) -> float:
-        if task.difficulty == "hard":
-            has_early_fix = any(a.action_type == ActionType.OPTIMIZE_DB and a.target == "db" for a in state.history[:2])
-            if has_early_fix and state.bad_actions == 0 and state.system_stability > 0.7:
-                return 0.2 
-        elif state.bad_actions == 0 and state.system_stability > 0.9:
-            return 0.1
-        return 0.0
