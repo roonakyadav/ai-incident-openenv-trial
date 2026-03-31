@@ -19,6 +19,7 @@ class ActionType(str, Enum):
     OPTIMIZE_DB = "optimize_db"
     CHECK_LOGS = "check_logs"
     IGNORE = "ignore"
+    UNKNOWN = "unknown"
 
 class Action(BaseModel):
     action_type: ActionType

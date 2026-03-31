@@ -94,99 +94,109 @@ class IncidentEnv:
         )
 
     def step(self, action: Action) -> Dict[str, Any]:
-        # Check if episode has already terminated
-        if hasattr(self, "is_done") and self.is_done:
+        try:
+            # Check if episode has already terminated
+            if hasattr(self, "is_done") and self.is_done:
+                return {
+                    "state": self.get_state(),
+                    "reward": 0.0,
+                    "done": True,
+                    "info": {
+                        "message": "Episode already completed. Please reset.",
+                        "type": "terminated"
+                    }
+                }
+            
+            self.time_step += 1
+            self.history.append(action)
+            
+            # Store previous state before applying action
+            prev_state = self.get_state()
+            
+            # Store previous stability for reward calculation
+            self.previous_stability = self.system_stability
+            
+            # Add cost
+            self.total_cost += self.ACTION_COSTS.get(action.action_type, 0.0)
+            
+            # Apply action and get result
+            reward_info = self._apply_action(action)
+            
+            # Safely extract action type and increment bad_actions if needed
+            action_type = reward_info.get("type", "unknown")
+            
+            if action_type in ["wrong_fix", "useless_action", "unknown"]:
+                self.bad_actions += 1
+                # Log the bad action for debugging
+                self.logs.append(f"Bad action detected: {action_type}")
+                # Initial instability penalty for wrong/useless actions
+                self.system_stability = max(0.0, self.system_stability - 0.1)
+                # Increase system strain
+                self.system_strain += 0.2
+            
+            # System strain decay
+            self.system_strain = max(0.0, self.system_strain - 0.05)
+            
+            # Deterministic risk for OPTIMIZE_DB
+            if action.action_type == ActionType.OPTIMIZE_DB:
+                self.risky_actions_count += 1
+                # Penalty if stability is already low OR if too many risky actions taken
+                if self.system_stability < 0.7 or self.risky_actions_count > 1:
+                    penalty = 0.1 * self.risky_actions_count
+                    self.system_stability = max(0.0, self.system_stability - penalty)
+                    self.system_strain += 0.1
+            
+            # Apply logic updates
+            self._apply_cascading_failures()
+            self._evolve_env()
+            self._update_metrics()
+            self._update_alerts() # Recompute alerts based on current state
+            self.system_stability = self._calculate_stability()
+            self._update_logs(action, reward_info)
+            
+            done = (
+                self.time_step >= self.max_steps or 
+                self.bad_actions > 2 or 
+                self.system_stability < 0.3 or 
+                self._all_services_up()
+            )
+            
+            # Update episode termination state
+            self.is_done = done
+            
+            # Add recovery log if all services are UP
+            if self._all_services_up() and done:
+                self.logs.append("System fully recovered. Episode complete.")
+            
+            # Calculate meaningful reward signal
+            reward = self._calculate_reward(reward_info, action)
+            
+            # Get state after applying action
+            curr_state = self.get_state()
+            
+            # Store trajectory step
+            self.state_history.append({
+                "action": action,
+                "state_before": prev_state,
+                "state_after": curr_state,
+                "reward_info": reward_info
+            })
+
+            return {
+                "state": curr_state,
+                "reward": reward,
+                "done": done,
+                "info": reward_info
+            }
+        except Exception as e:
+            # Catch-all to prevent crash
+            print(f"Error in IncidentEnv.step: {e}")
             return {
                 "state": self.get_state(),
-                "reward": 0.0,
-                "done": True,
-                "info": {
-                    "message": "Episode already completed. Please reset.",
-                    "type": "terminated"
-                }
+                "reward": -0.5,
+                "done": False,
+                "info": {"type": "error", "message": str(e)}
             }
-        
-        self.time_step += 1
-        self.history.append(action)
-        
-        # Store previous state before applying action
-        prev_state = self.get_state()
-        
-        # Store previous stability for reward calculation
-        self.previous_stability = self.system_stability
-        
-        # Add cost
-        self.total_cost += self.ACTION_COSTS.get(action.action_type, 0.0)
-        
-        # Apply action and get result
-        reward_info = self._apply_action(action)
-        
-        # Safely extract action type and increment bad_actions if needed
-        action_type = reward_info.get("type", "unknown")
-        
-        if action_type in ["wrong_fix", "useless_action"]:
-            self.bad_actions += 1
-            # Log the bad action for debugging
-            self.logs.append(f"Bad action detected: {action_type}")
-            # Initial instability penalty for wrong/useless actions
-            self.system_stability = max(0.0, self.system_stability - 0.1)
-            # Increase system strain
-            self.system_strain += 0.2
-        
-        # System strain decay
-        self.system_strain = max(0.0, self.system_strain - 0.05)
-        
-        # Deterministic risk for OPTIMIZE_DB
-        if action.action_type == ActionType.OPTIMIZE_DB:
-            self.risky_actions_count += 1
-            # Penalty if stability is already low OR if too many risky actions taken
-            if self.system_stability < 0.7 or self.risky_actions_count > 1:
-                penalty = 0.1 * self.risky_actions_count
-                self.system_stability = max(0.0, self.system_stability - penalty)
-                self.system_strain += 0.1
-        
-        # Apply logic updates
-        self._apply_cascading_failures()
-        self._evolve_env()
-        self._update_metrics()
-        self._update_alerts() # Recompute alerts based on current state
-        self.system_stability = self._calculate_stability()
-        self._update_logs(action, reward_info)
-        
-        done = (
-            self.time_step >= self.max_steps or 
-            self.bad_actions > 2 or 
-            self.system_stability < 0.3 or 
-            self._all_services_up()
-        )
-        
-        # Update episode termination state
-        self.is_done = done
-        
-        # Add recovery log if all services are UP
-        if self._all_services_up() and done:
-            self.logs.append("System fully recovered. Episode complete.")
-        
-        # Calculate meaningful reward signal
-        reward = self._calculate_reward(reward_info, action)
-        
-        # Get state after applying action
-        curr_state = self.get_state()
-        
-        # Store trajectory step
-        self.state_history.append({
-            "action": action,
-            "state_before": prev_state,
-            "state_after": curr_state,
-            "reward_info": reward_info
-        })
-
-        return {
-            "state": curr_state,
-            "reward": reward,
-            "done": done,
-            "info": reward_info
-        }
 
     def _calculate_reward(self, reward_info: Dict[str, Any], action: Action) -> float:
         """Calculate meaningful reward signal based on action outcomes and system state."""

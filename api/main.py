@@ -91,12 +91,27 @@ async def step_generic(request: StepRequest):
     
     # Map StepRequest to Action
     from models.schemas import ActionType
+    try:
+        action_type = ActionType(request.action_type)
+    except ValueError:
+        action_type = ActionType.UNKNOWN
+        
     action = Action(
-        action_type=ActionType(request.action_type),
+        action_type=action_type,
         target=request.target if request.target else "none"
     )
     
-    result = env.step(action)
+    try:
+        result = env.step(action)
+    except Exception as e:
+        # Extreme fallback to prevent 500
+        print(f"CRITICAL ERROR in env.step: {e}")
+        return StepResult(
+            state=env.get_state(),
+            reward=-0.5,
+            done=False,
+            info={"type": "error", "message": str(e)}
+        )
     
     # If episode just terminated, add termination message
     if result["done"]:
