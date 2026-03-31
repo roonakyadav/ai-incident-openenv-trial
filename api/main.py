@@ -3,12 +3,17 @@ from models.schemas import Action, StepResult, State, EpisodeResult
 from env.core import IncidentEnv
 from env.tasks import get_task, TASKS
 from env.grader import IncidentGrader
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
+from pydantic import BaseModel
 from baseline.baseline_agent import BaselineAgent
 from fastapi.staticfiles import StaticFiles
 
 # ✅ DEFINE APP FIRST (CRITICAL)
 app = FastAPI(title="AI Operations Incident Response Environment")
+
+class ResetRequest(BaseModel):
+    task_id: Optional[str] = "easy"
+    seed: Optional[int] = 42
 
 # Task aliases
 TASK_ALIASES = {
@@ -31,8 +36,12 @@ async def list_tasks():
     }
 
 # Reset environment
-@app.post("/reset/{task_id}")
-async def reset(task_id: str, seed: int = 42):
+@app.post("/reset")
+async def reset_generic(request: Optional[ResetRequest] = None):
+    # Default to easy task if none provided
+    task_id = request.task_id if request and request.task_id else "easy"
+    seed = request.seed if request and request.seed is not None else 42
+    
     actual_id = TASK_ALIASES.get(task_id.lower(), task_id)
     task = get_task(actual_id)
 
@@ -52,6 +61,10 @@ async def reset(task_id: str, seed: int = 42):
     graders[task_id] = IncidentGrader()
 
     return env.get_state()
+
+@app.post("/reset/{task_id}")
+async def reset(task_id: str, seed: Optional[int] = 42):
+    return await reset_generic(ResetRequest(task_id=task_id, seed=seed))
 
 # Step
 @app.post("/step/{task_id}", response_model=StepResult)
