@@ -15,6 +15,11 @@ class ResetRequest(BaseModel):
     task_id: Optional[str] = "easy"
     seed: Optional[int] = 42
 
+class StepRequest(BaseModel):
+    action_type: str
+    target: Optional[str] = None
+    task_id: Optional[str] = "easy"
+
 # Task aliases
 TASK_ALIASES = {
     "easy": "easy-auth-down",
@@ -67,8 +72,11 @@ async def reset(task_id: str, seed: Optional[int] = 42):
     return await reset_generic(ResetRequest(task_id=task_id, seed=seed))
 
 # Step
-@app.post("/step/{task_id}", response_model=StepResult)
-async def step(task_id: str, action: Action):
+@app.post("/step", response_model=StepResult)
+async def step_generic(request: StepRequest):
+    # Default to easy task if none provided
+    task_id = request.task_id if request.task_id else "easy"
+    
     if task_id not in sessions:
         raise HTTPException(status_code=404, detail="Session not found. Call reset first.")
 
@@ -80,6 +88,13 @@ async def step(task_id: str, action: Action):
             status_code=400,
             detail="Episode already terminated. Please reset."
         )
+    
+    # Map StepRequest to Action
+    from models.schemas import ActionType
+    action = Action(
+        action_type=ActionType(request.action_type),
+        target=request.target if request.target else "none"
+    )
     
     result = env.step(action)
     
@@ -101,6 +116,16 @@ async def step(task_id: str, action: Action):
         done=result["done"],
         info=result["info"]
     )
+
+@app.post("/step/{task_id}", response_model=StepResult)
+async def step(task_id: str, action: Action):
+    # Map Action to StepRequest
+    request = StepRequest(
+        action_type=action.action_type,
+        target=action.target,
+        task_id=task_id
+    )
+    return await step_generic(request)
 
 # Get state
 @app.get("/state/{task_id}")
