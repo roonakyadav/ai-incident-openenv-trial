@@ -1,45 +1,83 @@
-name: ai-incident-env
-version: "0.1.0"
-description: "AI Operations Incident Response Environment for SRE/DevOps scenarios"
-entry_point: api.main:app
-
-evaluation:
-  type: "deterministic"
-  description: "Task-driven evaluation using explicit success and failure conditions with trajectory-based reward shaping."
+name: ai-incident-openenv
+version: "1.0.0"
+description: >
+  OpenEnv environment for evaluating AI agents on distributed system
+  incident response. Agents diagnose and recover multi-service failures
+  by reasoning over logs, alerts, and metrics across 3 tasks of
+  increasing difficulty.
+tags:
+  - openenv
+  - incident-response
+  - sre
+  - devops
+  - multi-step-reasoning
 
 tasks:
   - id: easy-auth-down
     difficulty: easy
-    goal: "Restore all services to UP state"
+    max_steps: 10
+    success_threshold: 0.6
+    description: Single auth service failure. Restart the correct service.
+
   - id: medium-payments-degraded
     difficulty: medium
-    goal: "Stabilize system with minimal cost"
-  - id: hard-cascading-failure
+    max_steps: 12
+    success_threshold: 0.6
+    description: >
+      Payments service degraded under high load.
+      Scale and stabilize before error rate breaches SLA.
+
+  - id: hard-bad-deployment
     difficulty: hard
-    goal: "Resolve cascading failures by fixing root cause"
+    max_steps: 10
+    success_threshold: 0.6
+    description: >
+      Auth failure from bad deployment. Misleading DB logs.
+      Only rollback_service fully resolves it.
+
+  - id: hard-cascading-ambiguous
+    difficulty: hard
+    max_steps: 15
+    success_threshold: 0.6
+    description: >
+      Both auth and payments degraded. Shared DB dependency causes
+      re-degradation if wrong service fixed first. Order of actions matters.
+
+  - id: hard-latent-root-cause
+    difficulty: hard
+    max_steps: 12
+    success_threshold: 0.6
+    description: >
+      A latent root cause in the payments service is causing auth degradation. 
+      Misleading logs suggest auth is the issue. Delayed failure if wrong fix.
 
 action_space:
-  type: "discrete"
+  type: structured
+  schema:
+    action_type: string (enum of 10 values)
+    target: string (optional)
   actions:
     - restart_service
-    - scale
-    - optimize_db
+    - rollback_service
+    - isolate_service
     - check_logs
-    - ignore
+    - check_metrics
+    - scale_service
+    - drain_traffic
+    - restore_traffic
+    - optimize_db
+    - escalate
 
 observation_space:
-  includes:
-    - services (status, latency, error_rate)
-    - logs
-    - alerts
-    - system_stability
-    - system_strain
-    - dependencies
-    - cost
+  - services: list of service state objects
+  - logs: list of recent log strings
+  - alerts: list of active alert strings
+  - system_health: float [0.0, 1.0]
+  - system_stability: float [0.0, 1.0]
+  - system_strain: float [0.0, 1.0]
+  - time_step: integer
 
-episode:
-  termination_conditions:
-    - max_steps reached
-    - all services healthy
-    - system_stability below threshold
-    - too many bad actions
+endpoints:
+  reset: POST /reset
+  step: POST /step
+  state: GET /state

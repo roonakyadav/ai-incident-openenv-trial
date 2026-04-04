@@ -94,6 +94,110 @@ TASKS = [
             "CRITICAL: Critical dependency latency spike detected"
         ],
         max_steps=10
+    ),
+    Task(
+        id="hard-bad-deployment",
+        difficulty=TaskDifficulty.HARD,
+        description="A new deployment of the auth service is causing intermittent errors. Misleading logs suggest a DB issue.",
+        goal="Roll back the faulty deployment to restore service stability.",
+        success_conditions={
+            "all_services_up": True,
+            "root_cause_fixed": True
+        },
+        failure_conditions={
+            "bad_actions_limit": 3,
+            "system_stability_below": 0.3
+        },
+        initial_services=[
+            Service(name="auth", status=ServiceStatus.DEGRADED, error_rate=0.9),
+            Service(name="db", status=ServiceStatus.UP),
+            Service(name="payments", status=ServiceStatus.UP),
+            Service(name="frontend", status=ServiceStatus.UP)
+        ],
+        initial_logs=[
+            "Auth service: ERROR - connection pool exhausted, retrying...",
+            "Auth service: ERROR - database read timeout after 3000ms",
+            "Auth service: WARN - db connection queue depth: 47",
+            "Auth service: ERROR - failed health check (downstream: postgres)",
+            "INFO: background job scheduler heartbeat OK",
+            "INFO: auth-v2.1.0 deploy pipeline completed OK",
+            "ERROR: Frontend 502 bad gateway — upstream auth unreachable"
+        ],
+        initial_alerts=[
+            "CRITICAL: Auth service error rate high",
+            "WARNING: Potential database latency (misleading)"
+        ],
+        max_steps=10
+    ),
+    Task(
+        id="hard-cascading-ambiguous",
+        difficulty=TaskDifficulty.HARD,
+        description="Both auth and payments are degraded. Causal reasoning is required to identify the shared dependency and rollback the correct service.",
+        goal="Restore all services by identifying and rolling back the root cause deployment.",
+        success_conditions={
+            "all_services_up": True,
+            "max_error_rate": 0.1
+        },
+        failure_conditions={
+            "bad_actions_limit": 4,
+            "system_stability_below": 0.25
+        },
+        initial_services=[
+            Service(name="auth", status=ServiceStatus.DEGRADED, error_rate=0.4),
+            Service(name="payments", status=ServiceStatus.DEGRADED, error_rate=0.4),
+            Service(name="db", status=ServiceStatus.UP),
+            Service(name="frontend", status=ServiceStatus.DOWN)
+        ],
+        initial_logs=[
+            "Payments service: WARN - elevated transaction failure rate: 23%",
+            "Auth service: ERROR - session validation latency spike: 800ms",
+            "INFO: payments-v3.4.1 deploy pipeline completed OK",
+            "Auth service: WARN - database connection pool shared with payments-db",
+            "Frontend: ERROR - dependency health check failed (auth + payments)",
+            "Payments service: ERROR - rollback checkpoint available: v3.3.9",
+            "INFO: load balancer health checks: auth=degraded, payments=degraded, frontend=down"
+        ],
+        initial_alerts=[
+            "WARNING: Auth service degraded",
+            "WARNING: Payments service degraded",
+            "CRITICAL: Frontend is down"
+        ],
+        max_steps=15
+    ),
+    Task(
+        id="hard-latent-root-cause",
+        difficulty=TaskDifficulty.HARD,
+        description="A latent root cause in the payments service is causing auth degradation. Misleading logs suggest auth is the issue.",
+        goal="Restore all services by identifying the hidden root cause (payments).",
+        success_conditions={
+            "all_services_up": True,
+            "root_cause_fixed": True
+        },
+        failure_conditions={
+            "bad_actions_limit": 4,
+            "system_stability_below": 0.25
+        },
+        initial_services=[
+            Service(name="auth", status=ServiceStatus.DEGRADED, error_rate=0.5),
+            Service(name="payments", status=ServiceStatus.UP),
+            Service(name="frontend", status=ServiceStatus.UP)
+        ],
+        initial_logs=[
+            "Auth service: ERROR - downstream service connection reset by peer",
+            "Auth service: WARN - high latency on internal service mesh",
+            "INFO: auth-v1.4.2 deploy pipeline completed OK",
+            "Payments service: INFO - routine cleanup job running",
+            "INFO: shared network bridge 'internal-vlan-2' is experiencing intermittent packet loss",
+            "WARN: subtle latency increase in payments service persistence layer",
+            "ERROR: auth service health check failed"
+        ],
+        initial_alerts=[
+            "CRITICAL: Auth service degraded",
+            "INFO: Network bridge latency spike"
+        ],
+        max_steps=12,
+        true_root_cause="payments",
+        surface_symptom_target="auth"
     )
 ]
 

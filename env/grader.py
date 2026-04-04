@@ -2,6 +2,40 @@ from models.schemas import EpisodeResult, State, Task, ActionType, ServiceStatus
 
 class IncidentGrader:
     def grade_episode(self, state: State, task: Task) -> EpisodeResult:
+        # Diagnostic classification logic
+        failure_type = "Unknown"
+        
+        # Check if root cause fix was performed after diagnosis
+        root_cause_diagnosed_before_fix = False
+        if task.true_root_cause:
+            # Find diagnosis index for root cause
+            diagnosis_index = -1
+            for i, action in enumerate(state.history):
+                if action.target == task.true_root_cause and action.action_type in [ActionType.CHECK_LOGS, ActionType.CHECK_METRICS]:
+                    diagnosis_index = i
+                    break
+            
+            # Find fix index for root cause
+            fix_index = -1
+            for i, action in enumerate(state.history):
+                if action.target == task.true_root_cause and action.action_type in [ActionType.RESTART_SERVICE, ActionType.ROLLBACK_SERVICE, ActionType.SCALE, ActionType.OPTIMIZE_DB]:
+                    fix_index = i
+                    break
+            
+            if diagnosis_index != -1 and fix_index != -1 and diagnosis_index < fix_index:
+                root_cause_diagnosed_before_fix = True
+
+        if state.symptom_fix_count == 0 and state.delayed_failure_count == 0 and root_cause_diagnosed_before_fix and state.root_cause_step is not None and state.root_cause_step <= 2:
+            failure_type = "Efficient Reasoner"
+        elif state.symptom_fix_count > 0 and state.delayed_failure_count > 0:
+            failure_type = "Symptom Chaser"
+        elif not root_cause_diagnosed_before_fix and state.root_cause_step is not None:
+            failure_type = "Lucky Guesser"
+        elif state.wasted_action_count >= 3 and state.root_cause_step is None:
+            failure_type = "Stuck in Observation Loop"
+        elif state.root_cause_step is not None and state.root_cause_step > 5:
+            failure_type = "Late Corrector"
+
         # Evaluate success based on task conditions
         success_score = self._evaluate_success_conditions(state, task)
         efficiency_score = self._calculate_efficiency_score(state, task)
@@ -9,13 +43,78 @@ class IncidentGrader:
         stability_score = state.system_stability
         sequence_score = self._calculate_sequence_score(state, task)
         
+        # Track bonus/penalty application for hard-cascading-ambiguous and hard-latent-root-cause
+        sequence_bonus_applied = False
+        wrong_order_penalty_applied = False
+        
+        # Apply special task-specific scoring for hard-latent-root-cause
+        if task.id == "hard-latent-root-cause":
+            # 1. Early correct fix bonus
+            correct_fix_index = -1
+            for i, action in enumerate(state.history):
+                if action.target == getattr(task, "true_root_cause", "payments") and action.action_type in [ActionType.RESTART_SERVICE, ActionType.ROLLBACK_SERVICE]:
+                    correct_fix_index = i
+                    break
+            
+            if 0 <= correct_fix_index < 4:
+                sequence_score += 0.35
+                sequence_bonus_applied = True
+            
+            # 2. Penalty for fixing symptom before root cause
+            symptom_fix_index = -1
+            for i, action in enumerate(state.history):
+                if action.target == getattr(task, "surface_symptom_target", "auth") and action.action_type in [ActionType.RESTART_SERVICE, ActionType.ROLLBACK_SERVICE]:
+                    symptom_fix_index = i
+                    break
+            
+            if symptom_fix_index != -1 and (correct_fix_index == -1 or symptom_fix_index < correct_fix_index):
+                sequence_score -= 0.20
+                wrong_order_penalty_applied = True
+
+        # Apply special task-specific scoring for hard-cascading-ambiguous
+        if task.id == "hard-cascading-ambiguous":
+            # 1. Sequence bonus for early rollback on payments
+            rollback_index = -1
+            for i, action in enumerate(state.history):
+                if action.action_type == ActionType.ROLLBACK_SERVICE and action.target == "payments":
+                    rollback_index = i
+                    break
+            
+            if 0 <= rollback_index < 5:
+                sequence_score += 0.30
+                sequence_bonus_applied = True
+            
+            # 2. Penalty for fixing auth before payments
+            auth_restart_index = -1
+            for i, action in enumerate(state.history):
+                if action.action_type == ActionType.RESTART_SERVICE and action.target == "auth":
+                    auth_restart_index = i
+                    break
+            
+            if auth_restart_index != -1 and (rollback_index == -1 or auth_restart_index < rollback_index):
+                sequence_score -= 0.15
+                wrong_order_penalty_applied = True
+            
+            # 3. Productive diagnosis after payments fix if auth is still degraded (due to re-degrade)
+            # Find when payments was fixed
+            if rollback_index != -1:
+                productive_diagnosis_count = 0
+                for action in state.history[rollback_index+1:]:
+                    if action.action_type in [ActionType.CHECK_METRICS, ActionType.CHECK_LOGS]:
+                        productive_diagnosis_count += 1
+                        if productive_diagnosis_count <= 2:
+                            sequence_score += 0.05
+        
+        # Clamp sequence_score to [0.0, 1.0]
+        sequence_score = max(0.0, min(1.0, sequence_score))
+        
         # Apply failure condition penalties with sequence score integration
         final_score = (
-            0.45 * success_score +
-            0.2 * efficiency_score +
-            0.2 * cost_efficiency_score +
-            0.1 * stability_score +
-            0.05 * sequence_score
+            0.40 * success_score +
+            0.15 * efficiency_score +
+            0.20 * cost_efficiency_score +
+            0.05 * stability_score +
+            0.20 * sequence_score
         )
         
         # Apply failure condition penalties
@@ -34,12 +133,21 @@ class IncidentGrader:
             damage_score=damage_score,
             cost_efficiency_score=cost_efficiency_score,
             stability_score=stability_score,
+            sequence_score=sequence_score,
+            sequence_bonus_applied=sequence_bonus_applied,
+            wrong_order_penalty_applied=wrong_order_penalty_applied,
             steps_used=state.time_step,
             bad_actions=state.bad_actions,
             system_health_penalty=health_penalty,
             total_cost=state.total_cost,
             system_strain=state.system_strain,
-            optimal_bonus=sequence_score  # Using sequence_score for optimal_bonus for visibility
+            optimal_bonus=sequence_score,  # Using sequence_score for optimal_bonus for visibility
+            symptom_fix_count=state.symptom_fix_count,
+            root_cause_step=state.root_cause_step,
+            delayed_failure_count=state.delayed_failure_count,
+            wasted_action_count=state.wasted_action_count,
+            failure_type=failure_type,
+            diagnosed_targets=state.diagnosed_targets
         )
 
     def _calculate_sequence_score(self, state: State, task: Task) -> float:
@@ -55,6 +163,9 @@ class IncidentGrader:
             is_correct = False
             if task.id == "hard-cascading-failure":
                 if action.action_type == ActionType.OPTIMIZE_DB and action.target == "db":
+                    is_correct = True
+            elif task.id == "hard-bad-deployment":
+                if action.action_type == ActionType.ROLLBACK_SERVICE and action.target == "auth":
                     is_correct = True
             elif task.id == "medium-payments-degraded":
                 if action.target == "payments" and action.action_type in [ActionType.SCALE, ActionType.RESTART_SERVICE]:
@@ -94,6 +205,9 @@ class IncidentGrader:
             is_correct = False
             if task.id == "hard-cascading-failure":
                 if action.action_type == ActionType.OPTIMIZE_DB and action.target == "db":
+                    is_correct = True
+            elif task.id == "hard-bad-deployment":
+                if action.action_type == ActionType.ROLLBACK_SERVICE and action.target == "auth":
                     is_correct = True
             elif task.id == "medium-payments-degraded":
                 if action.target == "payments" and action.action_type in [ActionType.SCALE, ActionType.RESTART_SERVICE]:
@@ -212,6 +326,12 @@ class IncidentGrader:
                     for a in state.history
                 )
                 return 1.0 if has_db_fix else 0.0
+            elif task.id == "hard-bad-deployment":
+                has_rollback = any(
+                    a.action_type == ActionType.ROLLBACK_SERVICE and a.target == "auth"
+                    for a in state.history
+                )
+                return 1.0 if has_rollback else 0.0
             elif task.id == "medium-payments-degraded":
                 has_payments_fix = any(
                     (a.action_type == ActionType.SCALE or a.action_type == ActionType.RESTART_SERVICE) 
@@ -306,3 +426,59 @@ class IncidentGrader:
             health_penalty = 0.2 * (current_down_services - initial_down_services)
             
         return damage_score, health_penalty
+
+    def calculate_step_reward(self, action, reward_info, env) -> float:
+        """Calculate step-wise reward for new and existing actions."""
+        reward = 0.0
+        
+        # New actions reward logic
+        if action.action_type == ActionType.CHECK_METRICS:
+            reward += 0.05
+        
+        elif action.action_type == ActionType.DRAIN_TRAFFIC:
+            target = env._get_service(action.target)
+            if target and target.status != ServiceStatus.UP:
+                reward += 0.10
+            else:
+                reward -= 0.10
+        
+        elif action.action_type == ActionType.RESTORE_TRAFFIC:
+            # Check if it was actually drained (reward_info["type"] would be "tactical_move" if successful)
+            if reward_info.get("type") == "tactical_move":
+                reward += 0.05
+            else:
+                reward -= 0.05
+        
+        elif action.action_type == ActionType.ROLLBACK_SERVICE:
+            if reward_info.get("type") == "correct_fix":
+                reward += 0.75
+            else:
+                reward -= 0.20
+        
+        elif action.action_type == ActionType.ISOLATE_SERVICE:
+            target = env._get_service(action.target)
+            if target and target.status != ServiceStatus.UP:
+                reward += 0.05
+            else:
+                reward -= 0.10
+        
+        elif action.action_type == ActionType.ESCALATE:
+            # Escalate returns a partial score based on system health
+            health = env._calculate_system_health()
+            reward += health * 0.5
+            
+        # Existing actions base rewards (from core.py)
+        if reward_info["type"] == "correct_fix" and action.action_type != ActionType.ROLLBACK_SERVICE:
+            reward += 0.3
+        elif reward_info["type"] == "temporary_fix":
+            reward += 0.1
+        elif reward_info["type"] == "diagnosis" and action.action_type != ActionType.CHECK_METRICS:
+            reward += 0.1
+        elif reward_info["type"] == "useless_action":
+            reward -= 0.2
+        elif reward_info["type"] == "wrong_fix" and action.action_type != ActionType.ROLLBACK_SERVICE:
+            reward -= 0.4
+        elif reward_info["type"] == "partial_fix":
+            reward += 0.15
+
+        return reward

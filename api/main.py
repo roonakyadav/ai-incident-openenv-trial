@@ -24,7 +24,8 @@ class StepRequest(BaseModel):
 TASK_ALIASES = {
     "easy": "easy-auth-down",
     "medium": "medium-payments-degraded",
-    "hard": "hard-cascading-failure"
+    "hard": "hard-cascading-failure",
+    "deployment": "hard-bad-deployment"
 }
 
 # In-memory session storage
@@ -142,7 +143,19 @@ async def step(task_id: str, action: Action):
     )
     return await step_generic(request)
 
-# Get state
+# Get current state (Pure read)
+@app.get("/state")
+async def get_current_state(task_id: Optional[str] = "easy"):
+    if task_id not in sessions:
+        raise HTTPException(
+            status_code=400,
+            detail="No active episode. Call /reset first."
+        )
+    
+    env = sessions[task_id]
+    return env.state().model_dump()
+
+# Get state by task_id
 @app.get("/state/{task_id}")
 async def get_state(task_id: str):
     if task_id not in sessions:
@@ -235,7 +248,9 @@ async def run_baseline():
     }
 
 # Serve Static UI (at the end)
-app.mount("/", StaticFiles(directory="static", html=True), name="static")
+import os as _os
+if _os.path.isdir("static"):
+    app.mount("/", StaticFiles(directory="static", html=True), name="static")
 
 @app.on_event("startup")
 async def startup_event():

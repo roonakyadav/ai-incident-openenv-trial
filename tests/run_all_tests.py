@@ -17,7 +17,8 @@ class AIIncidentTester:
             "simulations": {
                 "easy": {"score": 0.0, "pass": False},
                 "medium": {"score": 0.0, "pass": False},
-                "hard": {"score": 0.0, "pass": False}
+                "hard": {"score": 0.0, "pass": False},
+                "latent": {"score": 0.0, "pass": False}
             },
             "failure_handling": {"max_steps": False, "bad_actions": False},
             "grader": {
@@ -148,6 +149,18 @@ class AIIncidentTester:
             self.results["simulations"]["hard"]["pass"] = 0.8 <= grade_json["final_score"] <= 1.0
         except Exception as e:
             log(f"Simulation Hard Error: {e}")
+
+        # 4. Latent Root Cause Task
+        try:
+            requests.post(f"{API_BASE_URL}/reset/hard-latent-root-cause")
+            # Correct fix: payments
+            requests.post(f"{API_BASE_URL}/step/hard-latent-root-cause", json={"action_type": "restart_service", "target": "payments"})
+            grade_resp = requests.post(f"{API_BASE_URL}/grade/hard-latent-root-cause")
+            grade_json = grade_resp.json()
+            self.results["simulations"]["latent"]["score"] = grade_json["final_score"]
+            self.results["simulations"]["latent"]["pass"] = 0.8 <= grade_json["final_score"] <= 1.0
+        except Exception as e:
+            log(f"Simulation Latent Error: {e}")
 
     def test_failure_conditions(self):
         log("Testing Failure Conditions...")

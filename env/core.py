@@ -8,7 +8,13 @@ class IncidentEnv:
         ActionType.RESTART_SERVICE: 1.0,
         ActionType.SCALE: 3.0,
         ActionType.OPTIMIZE_DB: 5.0,
+        ActionType.ROLLBACK_SERVICE: 4.0,
+        ActionType.ISOLATE_SERVICE: 2.0,
         ActionType.CHECK_LOGS: 0.1,
+        ActionType.CHECK_METRICS: 0.2,
+        ActionType.DRAIN_TRAFFIC: 1.5,
+        ActionType.RESTORE_TRAFFIC: 0.5,
+        ActionType.ESCALATE: 0.0,
         ActionType.IGNORE: 0.0
     }
 
@@ -28,6 +34,28 @@ class IncidentEnv:
         self.risky_actions_count = 0
         self.system_strain = 0.0
         self.previous_strain = 0.0  # Initialize previous strain for reward calculation
+        self.isolated_services = []  # List of names of isolated services
+        self.drained_services = []   # List of names of drained services
+        self.partial_fixes = []      # List of names of services with partial fixes
+        self.redegrade_timers = {}   # Map service_name to steps_until_redegrade
+        
+        # Diagnostic Metrics
+        self.symptom_fix_count = 0
+        self.root_cause_step = None
+        self.delayed_failure_count = 0
+        self.wasted_action_count = 0
+        self.diagnosis_streak = 0
+        self.diagnosed_targets = set() # Track services that have been diagnosed
+        self.hidden_risk = 0.0
+        self.side_effect_triggered = False
+        self.RISK_THRESHOLD = 0.5 # Lowered
+        
+        # Hidden Root Cause + Delayed Consequence mechanism
+        self.true_root_cause = getattr(task, "true_root_cause", None)
+        self.surface_symptom_target = getattr(task, "surface_symptom_target", None)
+        self.fake_recovery_timer = None
+        self.root_cause_fixed = False
+        
         self.dependencies = self._initialize_dependencies()
         self.grader = IncidentGrader()
         self._update_metrics()
@@ -42,6 +70,11 @@ class IncidentEnv:
                 "db": ["auth"],
                 "auth": ["payments"],
                 "payments": ["frontend"]
+            }
+        elif self.task.id == "hard-cascading-ambiguous":
+            return {
+                "payments": ["auth", "frontend"],
+                "auth": ["frontend"]
             }
         elif self.task.id == "medium-payments-degraded":
             return {
@@ -65,6 +98,20 @@ class IncidentEnv:
             else:
                 service.latency = 1000.0
                 service.error_rate = 1.0
+            
+            # Apply effect of isolate_service (latency increase on dependents)
+            for isolated_name in self.isolated_services:
+                if isolated_name in self.dependencies and service.name in self.dependencies[isolated_name]:
+                    service.latency *= 1.5  # Significant latency increase for dependents of isolated services
+            
+            # Apply effect of drain_traffic (reduce error_rate on frontend)
+            if service.name == "frontend" and self.drained_services:
+                # If any service is drained, frontend error rate drops temporarily
+                service.error_rate *= 0.5
+            
+            # Apply effect of partial fixes (e.g., restart on bad_deployment)
+            if service.name in self.partial_fixes:
+                service.error_rate = 0.5
 
             # Add controlled noise (±5%)
             noise_latency = self.random.uniform(-0.05, 0.05)
@@ -72,6 +119,12 @@ class IncidentEnv:
             
             service.latency *= (1 + noise_latency)
             service.error_rate *= (1 + noise_error)
+
+            # Apply Hidden Risk Consequence: Subtle latency increase as risk builds
+            if self.hidden_risk > 0:
+                # Up to 20% latency increase as risk approaches threshold
+                risk_multiplier = 1.0 + (min(self.hidden_risk, self.RISK_THRESHOLD) * 0.2)
+                service.latency *= risk_multiplier
 
             # Ensure bounds
             service.latency = max(1.0, service.latency)
@@ -90,8 +143,19 @@ class IncidentEnv:
             system_stability=self.system_stability,
             risky_actions_count=self.risky_actions_count,
             dependencies=self.dependencies,
-            system_strain=self.system_strain
+            system_strain=self.system_strain,
+            symptom_fix_count=self.symptom_fix_count,
+            root_cause_step=self.root_cause_step,
+            delayed_failure_count=self.delayed_failure_count,
+            wasted_action_count=self.wasted_action_count,
+            diagnosed_targets=list(self.diagnosed_targets),
+            hidden_risk=self.hidden_risk,
+            side_effect_triggered=self.side_effect_triggered
         )
+
+    def state(self) -> State:
+        """Pure read of the current state without side effects."""
+        return self.get_state()
 
     def step(self, action: Action) -> Dict[str, Any]:
         try:
@@ -108,6 +172,29 @@ class IncidentEnv:
                 }
             
             self.time_step += 1
+            
+            # Wasted Actions tracking
+            if len(self.history) > 0:
+                prev_action = self.history[-1]
+                if action.action_type == prev_action.action_type and action.target == prev_action.target:
+                    self.wasted_action_count += 1
+            
+            if action.action_type in [ActionType.CHECK_LOGS, ActionType.CHECK_METRICS]:
+                self.diagnosis_streak += 1
+                if self.diagnosis_streak > 3:
+                    self.wasted_action_count += 1
+            else:
+                self.diagnosis_streak = 0
+            
+            # Root Cause Detection Step tracking
+            if self.root_cause_step is None and self.true_root_cause and action.target == self.true_root_cause:
+                self.root_cause_step = self.time_step
+            
+            # Symptom Fix tracking
+            fix_actions = [ActionType.RESTART_SERVICE, ActionType.SCALE, ActionType.ROLLBACK_SERVICE, ActionType.OPTIMIZE_DB]
+            if action.action_type in fix_actions and self.true_root_cause and action.target != self.true_root_cause:
+                self.symptom_fix_count += 1
+            
             self.history.append(action)
             
             # Store previous state before applying action
@@ -132,7 +219,37 @@ class IncidentEnv:
                 # Initial instability penalty for wrong/useless actions
                 self.system_stability = max(0.0, self.system_stability - 0.1)
                 # Increase system strain
-                self.system_strain += 0.2
+            self.system_strain += 0.2
+            
+            # Decrement re-degradation timers
+            for service_name in list(self.redegrade_timers.keys()):
+                self.redegrade_timers[service_name] -= 1
+                if self.redegrade_timers[service_name] <= 0:
+                    target_service = self._get_service(service_name)
+                    if target_service and target_service.status == ServiceStatus.UP:
+                        # Only re-degrade if root cause (payments) is still not fixed
+                        payments_service = self._get_service("payments")
+                        if payments_service and payments_service.status != ServiceStatus.UP:
+                            target_service.status = ServiceStatus.DEGRADED
+                            target_service.error_rate = 0.6
+                            self.logs.append(f"WARN: {service_name.capitalize()} degraded again due to unresolved shared dependency")
+                    del self.redegrade_timers[service_name]
+            
+            # Handle Hidden Root Cause + Delayed Consequence mechanism
+            if self.fake_recovery_timer is not None:
+                self.fake_recovery_timer -= 1
+                if self.fake_recovery_timer <= 0:
+                    self.delayed_failure_count += 1
+                    # Timer expired, system degrades again
+                    if self.surface_symptom_target:
+                        symptom_service = self._get_service(self.surface_symptom_target)
+                        if symptom_service and symptom_service.status == ServiceStatus.UP:
+                            symptom_service.status = ServiceStatus.DEGRADED
+                            symptom_service.error_rate = 0.7
+                            self.logs.append("WARN: service degraded again due to unresolved underlying dependency")
+                            self.logs.append("WARN: recurring failure detected — root cause unresolved")
+                            self.system_strain += 0.3
+                    self.fake_recovery_timer = None
             
             # System strain decay
             self.system_strain = max(0.0, self.system_strain - 0.05)
@@ -164,9 +281,40 @@ class IncidentEnv:
             # Update episode termination state
             self.is_done = done
             
+            # Counterfactual Consequence System logic
+            if self.hidden_risk >= self.RISK_THRESHOLD and not self.side_effect_triggered:
+                self.side_effect_triggered = True
+                # Trigger a delayed side effect on a random healthy service
+                healthy_services = [s for s in self.services if s.status == ServiceStatus.UP]
+                if healthy_services:
+                    target = self.random.choice(healthy_services)
+                    target.status = ServiceStatus.DEGRADED
+                    target.error_rate = 0.5
+                    self.logs.append(f"CRITICAL: Unexpected degradation in {target.name} due to system-wide instability")
+                    self.logs.append("INFO: Root cause analysis indicates cascading instability from previous risky actions")
+
+            # Subtle signals based on hidden_risk
+            if self.hidden_risk > (self.RISK_THRESHOLD * 0.4) and self.time_step % 2 == 0:
+                instability_logs = [
+                    "WARN: System entropy increasing beyond normal operating parameters",
+                    "INFO: Minor synchronization delays detected in secondary cluster",
+                    "WARN: Resource contention observed in shared infrastructure"
+                ]
+                self.logs.append(self.random.choice(instability_logs))
+
             # Add recovery log if all services are UP
             if self._all_services_up() and done:
-                self.logs.append("System fully recovered. Episode complete.")
+                # Check if the final fix was a lucky guess
+                if reward_info.get("is_lucky_guess"):
+                    self.logs.append("System recovered, but cause was not diagnosed. Partial success.")
+                    # If it was a lucky guess, we don't end the episode immediately if we want to force validation
+                    # But the requirement says "Do NOT mark task fully successful immediately" 
+                    # "Require one more validation step OR apply penalty"
+                    # I'll make it NOT done if it's a lucky guess and all services are up.
+                    done = False
+                    self.is_done = False
+                else:
+                    self.logs.append("System fully recovered. Episode complete.")
             
             # Calculate meaningful reward signal
             reward = self._calculate_reward(reward_info, action)
@@ -174,12 +322,38 @@ class IncidentEnv:
             # Get state after applying action
             curr_state = self.get_state()
             
+            # Add score breakdown if episode is done
+            if done:
+                score_result = self.grader.grade_episode(curr_state, self.task)
+                reward_info["score_breakdown"] = {
+                    "success_score": score_result.root_cause_score,
+                    "efficiency_score": score_result.efficiency_score,
+                    "cost_efficiency_score": score_result.cost_efficiency_score,
+                    "stability_score": score_result.stability_score,
+                    "sequence_score": score_result.sequence_score,
+                    "final_score": score_result.final_score,
+                    "sequence_bonus_applied": score_result.sequence_bonus_applied,
+                    "wrong_order_penalty_applied": score_result.wrong_order_penalty_applied
+                }
+            else:
+                reward_info["score_breakdown"] = None
+            
             # Store trajectory step
             self.state_history.append({
                 "action": action,
                 "state_before": prev_state,
                 "state_after": curr_state,
+                "reward": reward,
                 "reward_info": reward_info
+            })
+
+            # Add diagnostic metrics to info
+            reward_info.update({
+                "symptom_fixes": self.symptom_fix_count,
+                "root_cause_step": self.root_cause_step,
+                "delayed_failures": self.delayed_failure_count,
+                "wasted_actions": self.wasted_action_count,
+                "failure_type": self.grader.grade_episode(curr_state, self.task).failure_type if done else None
             })
 
             return {
@@ -200,18 +374,32 @@ class IncidentEnv:
 
     def _calculate_reward(self, reward_info: Dict[str, Any], action: Action) -> float:
         """Calculate meaningful reward signal based on action outcomes and system state."""
-        reward = 0.0
+        # Use the grader to calculate base step reward
+        reward = self.grader.calculate_step_reward(action, reward_info, self)
         
-        # Base reward for action type
-        if reward_info["type"] == "correct_fix":
-            reward += 0.3
-        elif reward_info["type"] == "diagnosis":  # CHECK_LOGS
-            reward += 0.1
-        elif reward_info["type"] == "useless_action":
-            reward -= 0.2
-        elif reward_info["type"] == "wrong_fix":
-            reward -= 0.4
+        # Apply lucky guess penalty (50% reduction)
+        if reward_info.get("is_lucky_guess"):
+            reward *= 0.5
+            self.logs.append(f"Lucky guess detected on {action.target}! Reward reduced.")
         
+        # Risk build-up from other actions
+        if reward_info.get("type") == "wrong_fix":
+            self.hidden_risk += 0.3
+        elif action.action_type == ActionType.SCALE and reward_info.get("type") != "correct_fix":
+            # Excessive scaling on wrong targets increases infrastructure strain
+            self.hidden_risk += 0.25
+        elif action.action_type == ActionType.OPTIMIZE_DB and reward_info.get("type") == "useless_action":
+            # Running heavy DB optimization unnecessarily increases risk
+            self.hidden_risk += 0.2
+        
+        # Lucky guesses increase hidden risk (guessing is unstable)
+        if reward_info.get("is_lucky_guess"):
+            self.hidden_risk += 0.3
+        
+        # Successful fixes SLIGHTLY reduce risk (stabilization)
+        if reward_info.get("type") == "correct_fix" and not reward_info.get("is_lucky_guess"):
+            self.hidden_risk = max(0.0, self.hidden_risk - 0.1)
+
         # Time penalty per step
         reward -= 0.05
         
@@ -221,7 +409,7 @@ class IncidentEnv:
             reward += 0.2
         
         # Bonus for all services UP
-        if self._all_services_up():
+        if self._all_services_up() and not reward_info.get("is_lucky_guess"):
             reward += 0.3
         
         # Penalty for significant system strain increase
@@ -282,6 +470,10 @@ class IncidentEnv:
     def _apply_cascading_failures(self):
         # Deterministic cascading failures based on dependencies
         for root, dependents in self.dependencies.items():
+            # If service is isolated, it doesn't cause cascading failures downstream
+            if root in self.isolated_services:
+                continue
+                
             root_service = self._get_service(root)
             if not root_service:
                 continue
@@ -329,6 +521,11 @@ class IncidentEnv:
                     )
 
                     if dependencies_healthy:
+                        # Prevent automatic recovery for latent root cause task symptom
+                        if self.task.id == "hard-latent-root-cause" and service.name == self.surface_symptom_target:
+                            if not self.root_cause_fixed:
+                                continue
+                                
                         service.status = ServiceStatus.UP
                         service.latency = 20
                         service.error_rate = 0.01
@@ -393,6 +590,20 @@ class IncidentEnv:
             if self.time_step == 3:
                 new_logs.append("CRITICAL: Multiple services failing - prioritize immediate recovery over root cause analysis")
         
+        # Add hints and signals for hard-latent-root-cause task
+        if self.task.id == "hard-latent-root-cause":
+            # Subtle hint about hidden dependency early on
+            if self.time_step == 1:
+                new_logs.append("INFO: cross-service dependency check: auth -> (unresolved_upstream)")
+            
+            # Subtle hint about the true root cause
+            if self.time_step == 3:
+                new_logs.append("WARN: payments service internal queue depth increasing subtly")
+            
+            # Another hint if things are still bad
+            if self.time_step == 6:
+                new_logs.append("INFO: deployment logs show payments-v3.5.0 has shared resources with auth mesh")
+
         # Add to logs and limit to last 10
         self.logs.extend(new_logs)
         self.logs = self.logs[-10:]
@@ -401,23 +612,53 @@ class IncidentEnv:
     def _apply_action(self, action: Action) -> Dict[str, Any]:
         target_service = next((s for s in self.services if s.name == action.target), None)
         
+        # Hidden Root Cause mechanism
+        if self.true_root_cause and action.target == self.true_root_cause and action.action_type in [ActionType.RESTART_SERVICE, ActionType.ROLLBACK_SERVICE, ActionType.SCALE]:
+            # Fixing the true root cause
+            self.fake_recovery_timer = None
+            self.root_cause_fixed = True
+            if target_service:
+                target_service.status = ServiceStatus.UP
+                target_service.error_rate = 0.01
+            # Dependent services recover
+            if self.surface_symptom_target:
+                symptom_service = self._get_service(self.surface_symptom_target)
+                if symptom_service:
+                    symptom_service.status = ServiceStatus.UP
+                symptom_service.error_rate = 0.01
+            
+            is_lucky_guess = action.target not in self.diagnosed_targets
+            return {"type": "correct_fix", "target": action.target, "root_cause_fixed": True, "is_lucky_guess": is_lucky_guess}
+        
+        if self.surface_symptom_target and action.target == self.surface_symptom_target and action.action_type in [ActionType.RESTART_SERVICE, ActionType.ROLLBACK_SERVICE, ActionType.SCALE]:
+            # Fixing the surface symptom (wrong target)
+            if target_service and target_service.status != ServiceStatus.UP:
+                target_service.status = ServiceStatus.UP
+                target_service.error_rate = 0.05 # Lower error rate, temporary improvement
+                self.fake_recovery_timer = 2
+                return {"type": "temporary_fix", "target": action.target, "surface_symptom_fixed": True}
+        
         # Identify root cause for the current task
         root_cause_service = None
         if self.task.id == "hard-cascading-failure":
             root_cause_service = next((s for s in self.services if s.name == "db"), None)
         elif self.task.id == "medium-payments-degraded":
             root_cause_service = next((s for s in self.services if s.name == "payments"), None)
+        elif self.task.id == "hard-bad-deployment":
+            root_cause_service = next((s for s in self.services if s.name == "auth"), None) # Let's assume auth is the target for bad deployment in the new task
+        elif self.task.id == "hard-cascading-ambiguous":
+            root_cause_service = next((s for s in self.services if s.name == "payments"), None)
         
         # Check if agent is repeatedly targeting wrong services (for hard task)
-        if self.task.id == "hard-cascading-failure" and root_cause_service and root_cause_service.status != ServiceStatus.UP:
+        if (self.task.id == "hard-cascading-failure" or self.task.id == "hard-bad-deployment" or self.task.id == "hard-cascading-ambiguous") and root_cause_service and root_cause_service.status != ServiceStatus.UP:
             # Count how many times agent targeted non-root-cause services
             wrong_target_count = 0
             for past_action in self.history:
-                if past_action.target != "db" and past_action.action_type not in [ActionType.CHECK_LOGS, ActionType.IGNORE]:
+                if past_action.target != root_cause_service.name and past_action.action_type not in [ActionType.CHECK_LOGS, ActionType.CHECK_METRICS, ActionType.IGNORE]:
                     wrong_target_count += 1
             
             # If this is another wrong action and we already have multiple wrong actions
-            if wrong_target_count >= 2 and action.target != "db" and action.action_type not in [ActionType.CHECK_LOGS, ActionType.IGNORE]:
+            if wrong_target_count >= 2 and action.target != root_cause_service.name and action.action_type not in [ActionType.CHECK_LOGS, ActionType.CHECK_METRICS, ActionType.IGNORE]:
                 # Increase system strain more aggressively
                 self.system_strain += 0.15
                 # Add penalty log
@@ -426,6 +667,14 @@ class IncidentEnv:
         if action.action_type == ActionType.RESTART_SERVICE:
             if not target_service:
                 return {"type": "unknown", "target": action.target}
+            
+            # Special case for bad_deployment: restart gives partial fix
+            if self.task.id == "hard-bad-deployment" and target_service.name == "auth":
+                if target_service.status != ServiceStatus.UP:
+                    target_service.status = ServiceStatus.DEGRADED
+                    if target_service.name not in self.partial_fixes:
+                        self.partial_fixes.append(target_service.name)
+                    return {"type": "partial_fix", "target": action.target}
                 
             # If target has an unresolved upstream dependency that is DOWN/DEGRADED
             for root, dependents in self.dependencies.items():
@@ -436,13 +685,85 @@ class IncidentEnv:
 
             if target_service.status == ServiceStatus.DOWN:
                 target_service.status = ServiceStatus.UP
-                return {"type": "correct_fix", "target": action.target}
+                is_lucky_guess = action.target not in self.diagnosed_targets
+                return {"type": "correct_fix", "target": action.target, "is_lucky_guess": is_lucky_guess}
             elif target_service.status == ServiceStatus.DEGRADED:
+                # Special case for hard-cascading-ambiguous: restart auth while payments is down
+                if self.task.id == "hard-cascading-ambiguous" and target_service.name == "auth":
+                    payments_service = self._get_service("payments")
+                    if payments_service and payments_service.status != ServiceStatus.UP:
+                        target_service.status = ServiceStatus.UP
+                        self.redegrade_timers["auth"] = 2
+                        return {"type": "temporary_fix", "target": action.target}
+                
                 # Restart does NOT fix degraded state - requires correct action (e.g., SCALE, OPTIMIZE_DB)
                 return {"type": "wrong_fix", "target": action.target}
             else:
                 return {"type": "useless_action", "target": action.target}
         
+        elif action.action_type == ActionType.ROLLBACK_SERVICE:
+            if not target_service:
+                return {"type": "unknown", "target": action.target}
+            
+            if self.task.id == "hard-bad-deployment" and target_service.name == "auth":
+                target_service.status = ServiceStatus.UP
+                target_service.error_rate = 0.01
+                if target_service.name in self.partial_fixes:
+                    self.partial_fixes.remove(target_service.name)
+                is_lucky_guess = action.target not in self.diagnosed_targets
+                return {"type": "correct_fix", "target": action.target, "is_lucky_guess": is_lucky_guess}
+            elif self.task.id == "hard-cascading-ambiguous" and target_service.name == "payments":
+                target_service.status = ServiceStatus.UP
+                target_service.error_rate = 0.01
+                # If payments is rolled back, auth should also recover (it was only degraded due to payments)
+                auth_service = self._get_service("auth")
+                if auth_service and auth_service.status != ServiceStatus.DOWN:
+                    auth_service.status = ServiceStatus.UP
+                    auth_service.error_rate = 0.01
+                    # Clear any pending redegrade timer
+                    if "auth" in self.redegrade_timers:
+                        del self.redegrade_timers["auth"]
+                is_lucky_guess = action.target not in self.diagnosed_targets
+                return {"type": "correct_fix", "target": action.target, "is_lucky_guess": is_lucky_guess}
+            else:
+                # Penalty on wrong target
+                self.system_stability = max(0.0, self.system_stability - 0.1)
+                return {"type": "wrong_fix", "target": action.target}
+
+        elif action.action_type == ActionType.ISOLATE_SERVICE:
+            if not target_service:
+                return {"type": "unknown", "target": action.target}
+            
+            if target_service.name not in self.isolated_services:
+                self.isolated_services.append(target_service.name)
+                return {"type": "tactical_move", "target": action.target}
+            else:
+                return {"type": "useless_action", "target": action.target}
+
+        elif action.action_type == ActionType.DRAIN_TRAFFIC:
+            if not target_service:
+                return {"type": "unknown", "target": action.target}
+            
+            if target_service.name not in self.drained_services:
+                self.drained_services.append(target_service.name)
+                return {"type": "tactical_move", "target": action.target}
+            else:
+                return {"type": "useless_action", "target": action.target}
+
+        elif action.action_type == ActionType.RESTORE_TRAFFIC:
+            if not target_service:
+                return {"type": "unknown", "target": action.target}
+            
+            if target_service.name in self.drained_services:
+                self.drained_services.remove(target_service.name)
+                return {"type": "tactical_move", "target": action.target}
+            else:
+                return {"type": "wrong_fix", "target": action.target}
+
+        elif action.action_type == ActionType.ESCALATE:
+            self.is_done = True
+            return {"type": "escalate", "target": "all"}
+
         elif action.action_type == ActionType.SCALE:
             if not target_service:
                 return {"type": "unknown", "target": action.target}
@@ -451,23 +772,26 @@ class IncidentEnv:
             if root_cause_service and root_cause_service.status != ServiceStatus.UP and action.target != root_cause_service.name:
                 self.total_cost += 2.0 # Extra cost for scaling symptom instead of root cause
                 # Additional strain for treating symptoms
-                if self.task.id == "hard-cascading-failure":
+                if self.task.id == "hard-cascading-failure" or self.task.id == "hard-bad-deployment":
                     self.system_strain += 0.1
                 
             if target_service.status == ServiceStatus.DEGRADED:
                 target_service.status = ServiceStatus.UP
-                return {"type": "correct_fix", "target": action.target}
+                is_lucky_guess = action.target not in self.diagnosed_targets
+                return {"type": "correct_fix", "target": action.target, "is_lucky_guess": is_lucky_guess}
             else:
                 return {"type": "useless_action", "target": action.target}
 
         elif action.action_type == ActionType.OPTIMIZE_DB:
             if target_service and target_service.name == "db" and target_service.status == ServiceStatus.DEGRADED:
                 target_service.status = ServiceStatus.UP
-                return {"type": "correct_fix", "target": action.target}
+                is_lucky_guess = action.target not in self.diagnosed_targets
+                return {"type": "correct_fix", "target": action.target, "is_lucky_guess": is_lucky_guess}
             else:
                 return {"type": "useless_action", "target": action.target}
         
-        elif action.action_type == ActionType.CHECK_LOGS:
+        elif action.action_type == ActionType.CHECK_LOGS or action.action_type == ActionType.CHECK_METRICS:
+            self.diagnosed_targets.add(action.target)
             return {"type": "diagnosis", "target": action.target}
             
         elif action.action_type == ActionType.IGNORE:
@@ -529,6 +853,8 @@ class IncidentEnv:
                         payment_service.status = ServiceStatus.DEGRADED
 
     def _all_services_up(self) -> bool:
+        if self.fake_recovery_timer is not None:
+            return False
         return all(s.status == ServiceStatus.UP for s in self.services)
 
     def _calculate_system_health(self) -> float:

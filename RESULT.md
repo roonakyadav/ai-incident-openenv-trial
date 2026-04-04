@@ -6,21 +6,21 @@
 - /tasks: PASS
 
 ## Task Validation
-- Tasks Found: 3
+- Tasks Found: 6
 - Structure Valid: PASS
 
 ## Simulation Results
 
 ### Easy Task
-- Score: 0.97
-- Result: PASS
+- Score: 0.96
+- Result: FAIL
 
 ### Medium Task
-- Score: 0.94
+- Score: 0.91
 - Result: PASS
 
 ### Hard Task
-- Score: 0.71
+- Score: 0.73
 - Observations: System handles cascading failure, cost awareness, and root cause identification.
 
 ## Failure Handling
@@ -28,15 +28,15 @@
 - Bad action termination: PASS
 
 ## Grader Validation
-- Perfect Run Score: 0.97
-- Bad Run Score: 0.26
-- Mixed Run Score: 0.93
+- Perfect Run Score: 0.96
+- Bad Run Score: 0.25
+- Mixed Run Score: 0.91
 - Range Valid: PASS
 
 ## Baseline Agent
-- Easy Score: 0.97
-- Medium Score: 0.94
-- Hard Score: 0.72
+- Easy Score: 0.92
+- Medium Score: 0.88
+- Hard Score: 0.64
 
 ## OpenEnv Compliance
 - step(): PASS
@@ -44,4 +44,4 @@
 - state(): PASS
 
 ## Final Verdict
-- READY FOR SUBMISSION: YES
+- READY FOR SUBMISSION: NO
