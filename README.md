@@ -1,4 +1,10 @@
 ---
+title: AI Incident OpenEnv
+emoji: 🤖
+colorFrom: blue
+colorTo: green
+sdk: docker
+pinned: false
 tags:
 - openenv
 ---
