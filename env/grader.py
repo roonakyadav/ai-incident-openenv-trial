@@ -39,7 +39,7 @@ class IncidentGrader:
         # Evaluate success based on task conditions
         success_score = self._evaluate_success_conditions(state, task)
         efficiency_score = self._calculate_efficiency_score(state, task)
-        cost_efficiency_score = self._calculate_cost_efficiency_score(state)
+        cost_efficiency_score = self._calculate_cost_efficiency_score(state, task)
         stability_score = state.system_stability
         sequence_score = self._calculate_sequence_score(state, task)
         
@@ -411,11 +411,11 @@ class IncidentGrader:
             return 0.0
         return max(0.0, 1.0 - (state.time_step - 1) / task.max_steps) 
 
-    def _calculate_cost_efficiency_score(self, state: State) -> float:
-        max_reasonable_cost = 15.0 
+    def _calculate_cost_efficiency_score(self, state: State, task: Task = None) -> float:
+        max_reasonable_cost = float(task.success_conditions.get("cost_limit", 15.0)) if task and task.success_conditions else 15.0 
         return max(0.0, 1.0 - state.total_cost / max_reasonable_cost)
 
-    def _calculate_damage_and_health_penalty(self, state: State, task: Task) -> (float, float):
+    def _calculate_damage_and_health_penalty(self, state: State, task: Task) -> tuple:
         damage_score = max(0.0, 1.0 - (state.bad_actions * 0.4)) 
         
         initial_down_services = sum(1 for s in task.initial_services if s.status != ServiceStatus.UP)

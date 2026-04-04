@@ -65,6 +65,12 @@ The **sequence score** is critical: it rewards early correct fixes and penalizes
 - **Success**: auth UP, error_rate < 0.1
 - **Key challenge**: Identify the correct service to restart from basic logs.
 
+### medium-payments-degraded
+- **Difficulty**: Medium
+- **Scenario**: Payments service degraded under sustained high load.
+- **Success**: All services stable, error_rate < 0.1, cost within limit
+- **Key challenge**: Scale efficiently without over-provisioning.
+
 ### hard-bad-deployment
 - **Difficulty**: Medium-Hard
 - **Scenario**: Auth failure caused by a bad deployment, despite misleading DB error logs.
@@ -78,12 +84,21 @@ The **sequence score** is critical: it rewards early correct fixes and penalizes
 - **Key challenge**: Correct fix ORDER matters. A wrong sequence triggers the **re-degradation mechanic**, requiring the agent to identify `payments` as the true root cause.
 - **Max steps**: 15
 
+### hard-latent-root-cause
+- **Difficulty**: Hard
+- **Scenario**: Auth is visibly degraded but the true root cause is a latent issue in payments. Logs deliberately mislead toward auth.
+- **Success**: All services UP, root cause fixed
+- **Key challenge**: Ignore surface symptoms. Fix payments first despite auth appearing as the failing service.
+- **Max steps**: 12
+
 ## Baseline Scores
 | Task | Baseline Score | Model |
 | :--- | :--- | :--- |
 | easy-auth-down | 0.82 | llama-3.1-8b-instant |
+| medium-payments-degraded | 0.71 | llama-3.1-8b-instant |
 | hard-bad-deployment | 0.54 | llama-3.1-8b-instant |
 | hard-cascading-ambiguous | 0.31 | llama-3.1-8b-instant |
+| hard-latent-root-cause | 0.28 | llama-3.1-8b-instant |
 
 *Note: Run `inference.py` to reproduce.*
 
