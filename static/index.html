@@ -3,299 +3,524 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Incident Response Environment</title>
+    <title>AI Incident Response Dashboard</title>
     <style>
+        :root {
+            --bg-color: #0d1117;
+            --panel-bg: #161b22;
+            --border-color: #30363d;
+            --text-main: #c9d1d9;
+            --text-dim: #8b949e;
+            --green: #238636;
+            --green-dim: #2ea043;
+            --yellow: #d29922;
+            --red: #da3633;
+            --blue: #1f6feb;
+            --gray: #6e7681;
+            --terminal-bg: #010409;
+        }
+
+        * { box-sizing: border-box; }
         body {
-            background-color: #121212;
-            color: #e0e0e0;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
             margin: 0;
-            padding: 20px;
             display: flex;
             flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Header */
+        header {
+            height: 50px;
+            background-color: var(--panel-bg);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
             align-items: center;
+            padding: 0 20px;
+            justify-content: space-between;
         }
-        .container {
-            width: 100%;
-            max-width: 900px;
-        }
-        h1 {
-            color: #fefdff;
-            margin-bottom: 30px;
-        }
-        .controls {
-            background-color: #1e1e1e;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
-            margin-bottom: 20px;
-        }
-        .control-group {
+        .header-title {
+            font-size: 1.2rem;
+            font-weight: 600;
             display: flex;
-            flex-direction: column;
-            gap: 8px;
+            align-items: center;
+            gap: 12px;
         }
-        label {
-            font-size: 0.9em;
-            color: #03dac6;
-        }
-        select, input, button {
-            background-color: #2c2c2c;
-            color: #e0e0e0;
-            border: 1px solid #444;
-            padding: 10px;
-            border-radius: 4px;
-            font-size: 1em;
-        }
-        button {
-            cursor: pointer;
-            transition: background-color 0.2s;
-            background-color: #3700b3;
-            border: none;
-            font-weight: bold;
-        }
-        button:hover {
-            background-color: #6200ee;
-        }
-        button.secondary {
-            background-color: #03dac6;
-            color: #000;
-        }
-        button.secondary:hover {
-            background-color: #018786;
-        }
-        .actions-row {
+        .live-badge {
+            background: rgba(35, 134, 54, 0.15);
+            color: #3fb950;
+            border: 1px solid rgba(63, 185, 80, 0.4);
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.75rem;
             display: flex;
-            gap: 10px;
-            grid-column: 1 / -1;
-            margin-top: 10px;
-        }
-        #output {
-            background-color: #1e1e1e;
-            padding: 20px;
-            border-radius: 8px;
-            border: 1px solid #333;
-            height: 500px;
-            overflow-y: auto;
-            white-space: pre-wrap;
-            font-family: 'Cascadia Code', 'Courier New', Courier, monospace;
-            font-size: 0.9em;
-            color: #03dac6;
-        }
-        .evaluation-panel {
-            background-color: #1e1e1e;
-            padding: 15px;
-            border-radius: 8px;
-            border: 1px solid #333;
-            margin-top: 20px;
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 15px;
-        }
-        .eval-item {
-            display: flex;
-            flex-direction: column;
+            align-items: center;
             gap: 5px;
         }
-        .eval-label {
-            font-size: 0.8em;
-            color: #03dac6;
+        .live-badge::before {
+            content: "●";
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.4; }
+            100% { opacity: 1; }
+        }
+
+        /* Main Layout */
+        main {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        /* Panels */
+        .panel {
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            overflow-y: auto;
+        }
+        .left-panel {
+            width: 40%;
+            border-right: 1px solid var(--border-color);
+            background-color: var(--bg-color);
+        }
+        .right-panel {
+            width: 60%;
+            background-color: var(--bg-color);
+            gap: 20px;
+        }
+
+        /* Form Elements */
+        .section-title {
+            font-size: 0.85rem;
+            color: var(--text-dim);
             text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 15px;
+            font-weight: 600;
         }
-        .eval-value {
-            font-size: 1.1em;
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            font-size: 0.9rem;
+            margin-bottom: 8px;
+            color: var(--text-main);
+        }
+        select, input {
+            width: 100%;
+            background-color: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            padding: 10px;
+            border-radius: 6px;
+            font-size: 0.95rem;
+            outline: none;
+        }
+        select:focus, input:focus {
+            border-color: var(--blue);
+            box-shadow: 0 0 0 3px rgba(31, 111, 235, 0.3);
+        }
+        .btn-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        button {
+            padding: 10px;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            border: 1px solid transparent;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+        }
+        .btn-reset { background-color: var(--blue); color: white; }
+        .btn-reset:hover { background-color: #388bfd; }
+        .btn-step { background-color: var(--green); color: white; }
+        .btn-step:hover { background-color: var(--green-dim); }
+        .btn-state { background-color: var(--panel-bg); color: var(--text-main); border-color: var(--border-color); }
+        .btn-state:hover { background-color: #30363d; }
+
+        /* State Display (Right Panel) */
+        .services-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+            gap: 12px;
+        }
+        .service-card {
+            background-color: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 12px;
+        }
+        .service-card.placeholder {
+            border-style: dashed;
+            opacity: 0.5;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 80px;
+            color: var(--text-dim);
+            font-size: 0.85rem;
+        }
+        .service-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .service-name { font-weight: 600; font-size: 0.95rem; }
+        .status-badge {
+            font-size: 0.7rem;
+            padding: 2px 6px;
+            border-radius: 4px;
+            text-transform: uppercase;
             font-weight: bold;
-            color: #ffffff;
         }
-        .status-indicator {
-            margin-top: 10px;
-            font-size: 0.8em;
-            color: #888;
+        .status-up { background: rgba(35, 134, 54, 0.15); color: #3fb950; border: 1px solid rgba(63, 185, 80, 0.4); }
+        .status-degraded { background: rgba(210, 153, 34, 0.15); color: #d29922; border: 1px solid rgba(210, 153, 34, 0.4); }
+        .status-down { background: rgba(218, 54, 51, 0.15); color: #f85149; border: 1px solid rgba(248, 81, 73, 0.4); }
+
+        .service-metrics {
+            font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, Liberation Mono, monospace;
+            font-size: 0.8rem;
+            color: var(--text-dim);
         }
+
+        /* Logs & Alerts */
+        .terminal {
+            background-color: var(--terminal-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 12px;
+            font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, Liberation Mono, monospace;
+            font-size: 0.85rem;
+            min-height: 120px;
+        }
+        .terminal.placeholder {
+            color: rgba(63, 185, 80, 0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .log-line { margin-bottom: 4px; color: #7d8590; }
+        .log-line::before { content: "> "; color: var(--blue); }
+        .log-content { color: var(--text-main); }
+
+        .alerts-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .alert-pill {
+            background: rgba(218, 54, 51, 0.1);
+            color: #f85149;
+            border: 1px solid rgba(248, 81, 73, 0.4);
+            padding: 4px 10px;
+            border-radius: 100px;
+            font-size: 0.8rem;
+        }
+        .alert-pill.placeholder {
+            background: rgba(110, 118, 129, 0.1);
+            color: var(--text-dim);
+            border: 1px solid rgba(110, 118, 129, 0.4);
+        }
+
+        /* Metrics Bars */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 20px;
+        }
+        .metric-item { display: flex; flex-direction: column; gap: 8px; }
+        .metric-label { font-size: 0.8rem; color: var(--text-dim); display: flex; justify-content: space-between; }
+        .progress-bg { height: 6px; background: #30363d; border-radius: 3px; overflow: hidden; }
+        .progress-fill { height: 100%; transition: width 0.3s ease; }
+        .fill-health { background-color: var(--green); }
+        .fill-stability { background-color: var(--blue); }
+        .fill-strain { background-color: var(--yellow); }
+
+        /* Episode Stats Bar */
+        footer {
+            height: 40px;
+            background-color: #161b22;
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            font-size: 0.85rem;
+            color: var(--text-dim);
+            gap: 30px;
+            width: 100%;
+        }
+        .stat-item b { color: var(--text-main); margin-left: 5px; }
+        .status-active { color: #3fb950 !important; }
+        .status-terminated { color: #f85149 !important; }
+
+        /* Scrollbars */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: var(--bg-color); }
+        ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #484f58; }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>AI Incident Response Environment</h1>
-        
-        <div class="controls">
-            <div class="control-group">
-                <label for="taskSelect">Task</label>
-                <select id="taskSelect">
-                    <option value="easy">Easy</option>
-                    <option value="medium">Medium</option>
-                    <option value="hard">Hard</option>
-                </select>
-            </div>
+
+    <header>
+        <div class="header-title">
+            AI Incident Response Environment
+            <span class="live-badge">LIVE</span>
+        </div>
+        <div style="font-size: 0.8rem; color: var(--text-dim)">v1.0.0-stable</div>
+    </header>
+
+    <main>
+        <!-- Controls Panel -->
+        <div class="panel left-panel">
+            <div class="section-title">Operations Control</div>
             
-            <div class="control-group">
-                <label for="actionType">Action Type</label>
-                <select id="actionType">
-                    <option value="restart_service">restart_service</option>
-                    <option value="scale">scale</option>
-                    <option value="optimize_db">optimize_db</option>
-                    <option value="check_logs">check_logs</option>
-                    <option value="ignore">ignore</option>
+            <div class="form-group">
+                <label for="task-select">Select Task Instance</label>
+                <select id="task-select">
+                    <option value="easy-auth-down">easy-auth-down</option>
+                    <option value="medium-payments-degraded">medium-payments-degraded</option>
+                    <option value="hard-bad-deployment">hard-bad-deployment</option>
+                    <option value="hard-cascading-failure">hard-cascading-failure</option>
+                    <option value="hard-cascading-ambiguous">hard-cascading-ambiguous</option>
+                    <option value="hard-latent-root-cause">hard-latent-root-cause</option>
                 </select>
             </div>
 
-            <div class="control-group">
-                <label for="actionTarget">Target Service</label>
-                <input type="text" id="actionTarget" placeholder="e.g. auth, db, payments">
+            <div class="form-group">
+                <label for="action-select">Remediation Action</label>
+                <select id="action-select">
+                    <option value="restart_service">restart_service</option>
+                    <option value="rollback_service">rollback_service</option>
+                    <option value="isolate_service">isolate_service</option>
+                    <option value="check_logs">check_logs</option>
+                    <option value="check_metrics">check_metrics</option>
+                    <option value="scale">scale_service</option>
+                    <option value="drain_traffic">drain_traffic</option>
+                    <option value="restore_traffic">restore_traffic</option>
+                    <option value="optimize_db">optimize_db</option>
+                    <option value="escalate">escalate</option>
+                </select>
             </div>
 
-            <div class="actions-row">
-                <button onclick="resetTask()">Reset</button>
-                <button onclick="stepTask()">Step</button>
-                <button onclick="getState()">Get State</button>
-                <button class="secondary" onclick="runBaseline()">Run Baseline</button>
+            <div class="form-group">
+                <label for="target-input">Target Resource (service name / db)</label>
+                <input type="text" id="target-input" placeholder="e.g. auth, payments, db">
+            </div>
+
+            <div class="btn-group">
+                <button class="btn-reset" onclick="resetEnv()">Reset</button>
+                <button class="btn-step" onclick="stepEnv()">Step</button>
+                <button class="btn-state" onclick="getState()">Get State</button>
             </div>
         </div>
 
-        <div id="output">Results will appear here...</div>
-        
-        <div class="evaluation-panel" id="evaluationPanel" style="display: none;">
-            <div class="eval-item">
-                <div class="eval-label">Reward</div>
-                <div class="eval-value" id="rewardValue">-</div>
+        <!-- Monitoring Panel -->
+        <div class="panel right-panel">
+            <div>
+                <div class="section-title">System Health & Metrics</div>
+                <div class="metrics-grid">
+                    <div class="metric-item">
+                        <div class="metric-label">Health <span id="health-val">0%</span></div>
+                        <div class="progress-bg"><div id="health-bar" class="progress-fill fill-health" style="width: 0%"></div></div>
+                    </div>
+                    <div class="metric-item">
+                        <div class="metric-label">Stability <span id="stability-val">0%</span></div>
+                        <div class="progress-bg"><div id="stability-bar" class="progress-fill fill-stability" style="width: 0%"></div></div>
+                    </div>
+                    <div class="metric-item">
+                        <div class="metric-label">Infrastructure Strain <span id="strain-val">0%</span></div>
+                        <div class="progress-bg"><div id="strain-bar" class="progress-fill fill-strain" style="width: 0%"></div></div>
+                    </div>
+                </div>
             </div>
-            <div class="eval-item">
-                <div class="eval-label">Status</div>
-                <div class="eval-value" id="doneStatus">-</div>
+
+            <div>
+                <div class="section-title">Service Topology</div>
+                <div id="services-container" class="services-grid">
+                    <!-- Placeholder cards -->
+                    <div class="service-card placeholder">Awaiting reset...</div>
+                    <div class="service-card placeholder">Awaiting reset...</div>
+                    <div class="service-card placeholder">Awaiting reset...</div>
+                </div>
             </div>
-            <div class="eval-item">
-                <div class="eval-label">Info Type</div>
-                <div class="eval-value" id="infoType">-</div>
+
+            <div>
+                <div class="section-title">Active Alerts</div>
+                <div id="alerts-container" class="alerts-container">
+                    <div class="alert-pill placeholder">No active alerts</div>
+                </div>
             </div>
-            <div class="eval-item" id="infoMessageGroup">
-                <div class="eval-label">Info Message</div>
-                <div class="eval-value" id="infoMessage">-</div>
+
+            <div>
+                <div class="section-title">Telemetry Stream</div>
+                <div id="logs-container" class="terminal placeholder">
+                    Waiting for telemetry...
+                </div>
             </div>
         </div>
+    </main>
 
-        <div class="status-indicator" id="status">Ready.</div>
-    </div>
+    <footer>
+        <div class="stat-item">Step: <b id="step-count">0</b></div>
+        <div class="stat-item">Cumulative Reward: <b id="total-reward">0.00</b></div>
+        <div class="stat-item">Status: <b id="done-status" class="status-active">ACTIVE</b></div>
+        <div style="margin-left: auto; color: var(--blue)">OpenEnv Spec v0.2.0 Compliant</div>
+    </footer>
 
     <script>
-        const outputEl = document.getElementById('output');
-        const statusEl = document.getElementById('status');
-        const evaluationPanel = document.getElementById('evaluationPanel');
-        const rewardValue = document.getElementById('rewardValue');
-        const doneStatus = document.getElementById('doneStatus');
-        const infoType = document.getElementById('infoType');
-        const infoMessage = document.getElementById('infoMessage');
-        const infoMessageGroup = document.getElementById('infoMessageGroup');
+        let currentReward = 0.0;
+        const BASE_URL = window.location.origin;
 
-        function updateOutput(data) {
-            outputEl.textContent = JSON.stringify(data, null, 2);
-            outputEl.scrollTop = 0;
-        }
-
-        function updateEvaluation(data) {
-            if (data && typeof data.reward !== 'undefined') {
-                evaluationPanel.style.display = 'grid';
-                rewardValue.textContent = `Reward: ${data.reward.toFixed(3)}`;
-                doneStatus.textContent = data.done ? "Status: Completed" : "Status: Running";
-                
-                if (data.info) {
-                    const typeMap = { 
-                        "correct_fix": "✅ Correct Fix", 
-                        "wrong_fix": "❌ Wrong Fix", 
-                        "useless_action": "⚠️ No Impact", 
-                        "diagnosis": "🔍 Diagnosis" 
-                    };
-                    infoType.textContent = typeMap[data.info.type] || data.info.type || '-';
-                    if (data.info.message) {
-                        infoMessage.textContent = data.info.message;
-                        infoMessageGroup.style.display = 'flex';
-                    } else {
-                        infoMessageGroup.style.display = 'none';
-                    }
-                } else {
-                    infoType.textContent = '-';
-                    infoMessageGroup.style.display = 'none';
-                }
-            } else {
-                evaluationPanel.style.display = 'none';
+        function updateUI(state, lastReward = null) {
+            // Update stats
+            document.getElementById('step-count').innerText = state.time_step;
+            if (lastReward !== null) {
+                currentReward += lastReward;
+                document.getElementById('total-reward').innerText = currentReward.toFixed(2);
             }
-        }
-
-        function setStatus(msg) {
-            statusEl.textContent = msg;
-        }
-
-        async function apiCall(path, method = 'GET', body = null) {
-            setStatus(`Calling ${method} ${path}...`);
-            try {
-                const options = { method };
-                if (body) {
-                    options.headers = { 'Content-Type': 'application/json' };
-                    options.body = JSON.stringify(body);
-                }
-                const response = await fetch(path, options);
-                const data = await response.json();
-                updateOutput(data);
-                setStatus(`${method} ${path} successful.`);
-                return data;
-            } catch (error) {
-                updateOutput({ error: error.message });
-                setStatus(`Error calling ${path}.`);
-                return null;
-            }
-        }
-
-        async function resetTask() {
-            const task = document.getElementById('taskSelect').value;
-            evaluationPanel.style.display = 'none';
-            await apiCall(`/reset/${task}`, 'POST');
-        }
-
-        async function stepTask() {
-            const task = document.getElementById('taskSelect').value;
-            const action_type = document.getElementById('actionType').value;
-            const target = document.getElementById('actionTarget').value || 'none';
             
-            console.log(`Stepping task: ${task}, action: ${action_type}, target: ${target}`);
-            
-            setStatus(`Calling POST /step/${task}...`);
-            try {
-                const response = await fetch(`/step/${task}`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ action_type, target })
+            // Metrics
+            const health = (state.system_health * 100).toFixed(0);
+            const stability = (state.system_stability * 100).toFixed(0);
+            const strain = (state.system_strain * 100).toFixed(0);
+
+            document.getElementById('health-val').innerText = health + '%';
+            document.getElementById('health-bar').style.width = health + '%';
+            document.getElementById('stability-val').innerText = stability + '%';
+            document.getElementById('stability-bar').style.width = stability + '%';
+            document.getElementById('strain-val').innerText = strain + '%';
+            document.getElementById('strain-bar').style.width = strain + '%';
+
+            // Services
+            const sCont = document.getElementById('services-container');
+            if (state.services && state.services.length > 0) {
+                sCont.innerHTML = '';
+                state.services.forEach(s => {
+                    const card = document.createElement('div');
+                    card.className = 'service-card';
+                    const statusClass = 'status-' + s.status.toLowerCase();
+                    card.innerHTML = `
+                        <div class="service-header">
+                            <span class="service-name">${s.name}</span>
+                            <span class="status-badge ${statusClass}">${s.status}</span>
+                        </div>
+                        <div class="service-metrics">
+                            latency: ${s.latency.toFixed(1)}ms<br>
+                            errors: ${(s.error_rate * 100).toFixed(1)}%
+                        </div>
+                    `;
+                    sCont.appendChild(card);
                 });
-                const data = await response.json();
-                updateOutput(data);
-                updateEvaluation(data);
-                setStatus(`Step successful. Auto-refreshing state...`);
+            } else {
+                sCont.innerHTML = `
+                    <div class="service-card placeholder">Awaiting reset...</div>
+                    <div class="service-card placeholder">Awaiting reset...</div>
+                    <div class="service-card placeholder">Awaiting reset...</div>
+                `;
+            }
+
+            // Alerts
+            const aCont = document.getElementById('alerts-container');
+            if (state.alerts && state.alerts.length > 0) {
+                aCont.innerHTML = '';
+                state.alerts.forEach(a => {
+                    const pill = document.createElement('div');
+                    pill.className = 'alert-pill';
+                    pill.innerText = a;
+                    aCont.appendChild(pill);
+                });
+            } else {
+                aCont.innerHTML = '<div class="alert-pill placeholder">No active alerts</div>';
+            }
+
+            // Logs
+            const lCont = document.getElementById('logs-container');
+            const logs = state.logs || [];
+            if (logs.length > 0) {
+                lCont.classList.remove('placeholder');
+                lCont.innerHTML = '';
+                const recentLogs = logs.slice(-5);
+                recentLogs.forEach(l => {
+                    const line = document.createElement('div');
+                    line.className = 'log-line';
+                    line.innerHTML = `<span class="log-content">${l}</span>`;
+                    lCont.appendChild(line);
+                });
+            } else {
+                lCont.classList.add('placeholder');
+                lCont.innerHTML = 'Waiting for telemetry...';
+            }
+        }
+
+        async function resetEnv() {
+            const taskId = document.getElementById('task-select').value;
+            currentReward = 0.0;
+            document.getElementById('total-reward').innerText = '0.00';
+            document.getElementById('step-count').innerText = '0';
+            const statusEl = document.getElementById('done-status');
+            statusEl.innerText = 'ACTIVE';
+            statusEl.className = 'status-active';
+
+            try {
+                const res = await fetch(`${BASE_URL}/reset/${taskId}`, { method: 'POST' });
+                const state = await res.json();
+                updateUI(state);
+            } catch (e) {
+                console.error('Reset failed', e);
+                // alert('Connection to environment failed. Ensure server is running.');
+            }
+        }
+
+        async function stepEnv() {
+            const taskId = document.getElementById('task-select').value;
+            const actionType = document.getElementById('action-select').value;
+            const target = document.getElementById('target-input').value || 'none';
+
+            try {
+                const res = await fetch(`${BASE_URL}/step/${taskId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action_type: actionType, target: target })
+                });
+                const result = await res.json();
+                updateUI(result.state, result.reward);
                 
-                // Automatically call /state to get the updated view
-                // We don't want state update to clear the evaluation panel
-                const stateData = await getState();
-                updateOutput(stateData);
-
-                if (data.done) {
-                    setStatus(`Episode completed! Reward: ${data.reward.toFixed(3)}`);
+                if (result.done) {
+                    const statusEl = document.getElementById('done-status');
+                    statusEl.innerText = 'TERMINATED';
+                    statusEl.className = 'status-terminated';
                 }
-
-            } catch (error) {
-                updateOutput({ error: error.message });
-                setStatus(`Error during step.`);
+            } catch (e) {
+                console.error('Step failed', e);
             }
         }
 
         async function getState() {
-            const task = document.getElementById('taskSelect').value;
-            return await apiCall(`/state/${task}`);
+            const taskId = document.getElementById('task-select').value;
+            try {
+                const res = await fetch(`${BASE_URL}/state/${taskId}`);
+                const state = await res.json();
+                updateUI(state);
+            } catch (e) {
+                console.error('Get state failed', e);
+            }
         }
 
-        async function runBaseline() {
-            evaluationPanel.style.display = 'none';
-            await apiCall('/baseline');
-        }
+        document.addEventListener('DOMContentLoaded', resetEnv);
     </script>
 </body>
 </html>

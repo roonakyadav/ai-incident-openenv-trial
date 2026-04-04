@@ -35,6 +35,14 @@ tasks:
       Auth failure from bad deployment. Misleading DB logs.
       Only rollback_service fully resolves it.
 
+  - id: hard-cascading-failure
+    difficulty: hard
+    max_steps: 10
+    success_threshold: 0.6
+    description: >
+      Critical DB dependency causing cascading failure across auth and payments.
+      Multi-step reasoning required to identify and fix root cause.
+
   - id: hard-cascading-ambiguous
     difficulty: hard
     max_steps: 15
