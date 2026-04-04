@@ -249,7 +249,7 @@ def main():
     import argparse
 
     # Run all tasks sequentially
-    task_ids = ["easy-auth-down", "medium-payments-degraded", "hard-bad-deployment", "hard-cascading-ambiguous", "hard-latent-root-cause"]
+    task_ids = ["easy-auth-down", "medium-payments-degraded", "hard-cascading-failure", "hard-bad-deployment", "hard-cascading-ambiguous", "hard-latent-root-cause"]
     results = [run_episode(task_id) for task_id in task_ids]
 
     # Final summary
