@@ -9,8 +9,9 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # --- Fix 4: Environment variable handling ---
-API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:7860")
-MODEL_NAME = os.getenv("MODEL_NAME", "llama-3.1-8b-instant")
+API_BASE_URL = os.getenv("API_BASE_URL")
+ENV_URL = os.getenv("ENV_URL", "https://roonakyadav-ai-incident-openenv-trial.hf.space")
+MODEL_NAME = os.getenv("MODEL_NAME")
 HF_TOKEN = os.getenv("HF_TOKEN")
 SUCCESS_SCORE_THRESHOLD = 0.6
 MAX_STEPS = 15
@@ -147,7 +148,7 @@ def run_episode(task_id: str):
     
     # Reset environment
     try:
-        response = requests.post(f"{API_BASE_URL}/reset/{task_id}")
+        response = requests.post(f"{ENV_URL}/reset/{task_id}")
         if response.status_code != 200:
             print(f"Error resetting environment for task {task_id}: {response.text}")
             response.raise_for_status()
@@ -160,7 +161,7 @@ def run_episode(task_id: str):
         elif "bad-deployment" in task_id:
             task_objective = "Roll back the faulty deployment to restore service stability."
     except requests.exceptions.ConnectionError:
-        print(f"Error: Could not connect to API server at {API_BASE_URL}. Is it running?")
+        print(f"Error: Could not connect to API server at {ENV_URL}. Is it running?")
         print(f"[END] success=false steps=0 score=0.00 rewards=")
         return {"task_id": task_id, "score": 0.0, "steps": 0, "success": False}
     except Exception as e:
@@ -186,7 +187,7 @@ def run_episode(task_id: str):
         if target is None: target = "none"
         
         try:
-            response = requests.post(f"{API_BASE_URL}/step/{task_id}", json=action)
+            response = requests.post(f"{ENV_URL}/step/{task_id}", json=action)
             response.raise_for_status()
             result = response.json()
             
@@ -230,7 +231,7 @@ def run_episode(task_id: str):
             
     # Get final score from grader 
     try: 
-        grade_resp = requests.post(f"{API_BASE_URL}/grade/{task_id}") 
+        grade_resp = requests.post(f"{ENV_URL}/grade/{task_id}") 
         if grade_resp.status_code == 200: 
             graded_score = grade_resp.json().get("final_score", None) 
             if graded_score is not None: 
