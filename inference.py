@@ -9,22 +9,18 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # --- Fix 4: Environment variable handling ---
-API_BASE_URL = os.getenv("API_BASE_URL")
-if not API_BASE_URL:
-    print("Error: API_BASE_URL environment variable is required.")
-    sys.exit(1)
-
+API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:7860")
 MODEL_NAME = os.getenv("MODEL_NAME", "llama-3.1-8b-instant")
-API_KEY = os.getenv("HF_TOKEN")
+HF_TOKEN = os.getenv("HF_TOKEN")
 SUCCESS_SCORE_THRESHOLD = 0.6
 MAX_STEPS = 15
 
-# Use OpenAI-compatible API if API_KEY is present
-if API_KEY:
+# Use OpenAI-compatible API if HF_TOKEN is present
+if HF_TOKEN:
     try:
         from openai import OpenAI
         client = OpenAI(
-            api_key=API_KEY,
+            api_key=HF_TOKEN,
             base_url=API_BASE_URL
         )
     except ImportError:
@@ -232,6 +228,16 @@ def run_episode(task_id: str):
                 task_max_steps = state.get("max_steps", MAX_STEPS) if isinstance(state, dict) else MAX_STEPS
                 final_score = sum(rewards_list) / max(task_max_steps, 1)
             
+    # Get final score from grader 
+    try: 
+        grade_resp = requests.post(f"{API_BASE_URL}/grade/{task_id}") 
+        if grade_resp.status_code == 200: 
+            graded_score = grade_resp.json().get("final_score", None) 
+            if graded_score is not None: 
+                final_score = max(0.0, min(1.0, float(graded_score))) 
+    except Exception: 
+        pass 
+
     success = final_score >= SUCCESS_SCORE_THRESHOLD
     
     # Print END log

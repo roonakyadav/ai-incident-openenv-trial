@@ -120,11 +120,14 @@ class IncidentGrader:
         # Apply failure condition penalties
         final_score = self._apply_failure_conditions(state, task, final_score)
         
-        # Keep existing damage score calculation for backward compatibility
-        damage_score, health_penalty = self._calculate_damage_and_health_penalty(state, task)
-        
         # Additional penalty for system strain
         final_score -= (0.1 * state.system_strain)
+        
+        # Ensure final_score is clamped to [0.0, 1.0]
+        final_score = max(0.0, min(1.0, final_score))
+        
+        # Keep existing damage score calculation for backward compatibility
+        damage_score, health_penalty = self._calculate_damage_and_health_penalty(state, task)
         
         return EpisodeResult(
             final_score=max(0.0, min(1.0, final_score)),
@@ -469,9 +472,9 @@ class IncidentGrader:
             
         # Existing actions base rewards (from core.py)
         if reward_info["type"] == "correct_fix" and action.action_type != ActionType.ROLLBACK_SERVICE:
-            reward += 0.3
+            reward += 0.4
         elif reward_info["type"] == "temporary_fix":
-            reward += 0.1
+            reward += 0.2
         elif reward_info["type"] == "diagnosis" and action.action_type != ActionType.CHECK_METRICS:
             reward += 0.1
         elif reward_info["type"] == "useless_action":
@@ -479,6 +482,6 @@ class IncidentGrader:
         elif reward_info["type"] == "wrong_fix" and action.action_type != ActionType.ROLLBACK_SERVICE:
             reward -= 0.4
         elif reward_info["type"] == "partial_fix":
-            reward += 0.15
+            reward += 0.2
 
         return reward

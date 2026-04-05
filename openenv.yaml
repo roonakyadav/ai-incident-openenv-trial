@@ -15,13 +15,13 @@ tags:
 tasks:
   - id: easy-auth-down
     difficulty: easy
-    max_steps: 10
+    max_steps: 5
     success_threshold: 0.6
     description: Single auth service failure. Restart the correct service.
 
   - id: medium-payments-degraded
     difficulty: medium
-    max_steps: 12
+    max_steps: 8
     success_threshold: 0.6
     description: >
       Payments service degraded under high load.
@@ -51,13 +51,13 @@ tasks:
       Both auth and payments degraded. Shared DB dependency causes
       re-degradation if wrong service fixed first. Order of actions matters.
 
-  - id: hard-latent-root-cause
-    difficulty: hard
-    max_steps: 12
-    success_threshold: 0.6
-    description: >
-      A latent root cause in the payments service is causing auth degradation. 
-      Misleading logs suggest auth is the issue. Delayed failure if wrong fix.
+  - id: hard-latent-root-cause 
+    difficulty: hard 
+    max_steps: 12 
+    success_threshold: 0.6 
+    description: > 
+      Latent root cause in payments causes auth degradation. 
+      Misleading logs implicate auth. Delayed failure if wrong fix applied. 
 
 action_space:
   type: structured

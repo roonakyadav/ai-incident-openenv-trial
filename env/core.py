@@ -219,7 +219,7 @@ class IncidentEnv:
                 # Initial instability penalty for wrong/useless actions
                 self.system_stability = max(0.0, self.system_stability - 0.1)
                 # Increase system strain
-            self.system_strain += 0.2
+                self.system_strain += 0.2
             
             # Decrement re-degradation timers
             for service_name in list(self.redegrade_timers.keys()):
@@ -336,6 +336,7 @@ class IncidentEnv:
                     "wrong_order_penalty_applied": score_result.wrong_order_penalty_applied
                 }
             else:
+                score_result = None
                 reward_info["score_breakdown"] = None
             
             # Store trajectory step
@@ -353,7 +354,7 @@ class IncidentEnv:
                 "root_cause_step": self.root_cause_step,
                 "delayed_failures": self.delayed_failure_count,
                 "wasted_actions": self.wasted_action_count,
-                "failure_type": self.grader.grade_episode(curr_state, self.task).failure_type if done else None
+                "failure_type": score_result.failure_type if score_result else None
             })
 
             return {
