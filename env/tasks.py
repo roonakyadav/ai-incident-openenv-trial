@@ -98,8 +98,15 @@ TASKS = [
     Task(
         id="hard-bad-deployment",
         difficulty=TaskDifficulty.HARD,
-        description="A new deployment of the auth service is causing intermittent errors. Misleading logs suggest a DB issue.",
-        goal="Roll back the faulty deployment to restore service stability.",
+        description=(
+            "A new deployment of auth-v2.1.0 is causing a surge in errors. "
+            "Logs heavily implicate the database — connection timeouts, pool exhaustion, "
+            "and postgres health check failures. However, DB metrics show it is perfectly healthy. "
+            "The real cause is a goroutine leak in the new auth binary. "
+            "You must diagnose auth AND verify metrics before a rollback will stabilize the service. "
+            "Optimizing the database will make things worse."
+        ),
+        goal="Roll back the faulty auth-v2.1.0 deployment after proper diagnosis to restore service stability.",
         success_conditions={
             "all_services_up": True,
             "root_cause_fixed": True
@@ -115,19 +122,27 @@ TASKS = [
             Service(name="frontend", status=ServiceStatus.UP)
         ],
         initial_logs=[
-            "Auth service: ERROR - connection pool exhausted, retrying...",
+            "DB: WARN - connection pool utilization: 68% (normal range: 60-75%)",
             "Auth service: ERROR - database read timeout after 3000ms",
             "Auth service: WARN - db connection queue depth: 47",
             "Auth service: ERROR - failed health check (downstream: postgres)",
-            "INFO: background job scheduler heartbeat OK",
+            "DB: INFO - query execution times normal, no slow queries detected",
+            "Auth service: ERROR - connection pool exhausted, retrying...",
             "INFO: auth-v2.1.0 deploy pipeline completed OK",
-            "ERROR: Frontend 502 bad gateway — upstream auth unreachable"
+            "DB: INFO - replication lag: 2ms (healthy)",
+            "ERROR: Frontend 502 bad gateway — upstream auth unreachable",
+            "Auth service: WARN - memory RSS climbing: 1.1GB / 1.5GB limit",
+            "DB: INFO - active connections: 42 (max: 200)",
+            "Auth service: ERROR - goroutine leak detected in connection handler",
         ],
         initial_alerts=[
-            "CRITICAL: Auth service error rate high",
-            "WARNING: Potential database latency (misleading)"
+            "CRITICAL: Auth service error rate critical (90%)",
+            "WARNING: Database connection timeouts detected (verify before acting)",
+            "INFO: auth-v2.1.0 recently deployed"
         ],
-        max_steps=10
+        max_steps=10,
+        true_root_cause="auth",
+        surface_symptom_target="db"
     ),
     Task(
         id="hard-cascading-ambiguous",

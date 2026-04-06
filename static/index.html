@@ -41,6 +41,7 @@
             align-items: center;
             padding: 0 20px;
             justify-content: space-between;
+            flex-shrink: 0;
         }
         .header-title {
             font-size: 1.2rem;
@@ -64,7 +65,6 @@
             content: "●";
             animation: pulse 2s infinite;
         }
-
         @keyframes pulse {
             0% { opacity: 1; }
             50% { opacity: 0.4; }
@@ -78,69 +78,120 @@
             overflow: hidden;
         }
 
-        /* Panels */
         .panel {
             display: flex;
             flex-direction: column;
-            padding: 20px;
+            padding: 16px 20px;
             overflow-y: auto;
+            gap: 18px;
         }
         .left-panel {
-            width: 40%;
+            width: 38%;
             border-right: 1px solid var(--border-color);
             background-color: var(--bg-color);
+            flex-shrink: 0;
         }
         .right-panel {
-            width: 60%;
+            width: 62%;
             background-color: var(--bg-color);
-            gap: 20px;
+        }
+
+        .section-title {
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        /* FIX 6: Task Description Card */
+        .task-description-card {
+            background-color: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 12px 14px;
+        }
+        .task-description-card .task-id {
+            font-size: 0.8rem;
+            font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, Liberation Mono, monospace;
+            color: #58a6ff;
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .difficulty-badge {
+            font-size: 0.65rem;
+            padding: 2px 7px;
+            border-radius: 4px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+        .diff-easy   { background: rgba(35,134,54,0.15);  color: #3fb950; border: 1px solid rgba(63,185,80,0.4); }
+        .diff-medium { background: rgba(210,153,34,0.15); color: #d29922; border: 1px solid rgba(210,153,34,0.4); }
+        .diff-hard   { background: rgba(218,54,51,0.15);  color: #f85149; border: 1px solid rgba(248,81,73,0.4); }
+
+        .task-description-card .task-desc {
+            font-size: 0.88rem;
+            color: var(--text-main);
+            line-height: 1.5;
+            margin-bottom: 8px;
+        }
+        .task-description-card .task-goal {
+            font-size: 0.8rem;
+            color: var(--text-dim);
+            border-top: 1px solid var(--border-color);
+            padding-top: 8px;
+            margin-top: 4px;
+        }
+        .task-description-card .task-goal b {
+            color: #58a6ff;
+        }
+        .task-description-card .task-steps {
+            font-size: 0.78rem;
+            color: var(--text-dim);
+            margin-top: 4px;
+        }
+        .task-description-card .task-steps b {
+            color: var(--text-main);
         }
 
         /* Form Elements */
-        .section-title {
-            font-size: 0.85rem;
-            color: var(--text-dim);
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            margin-bottom: 15px;
-            font-weight: 600;
-        }
-        .form-group {
-            margin-bottom: 20px;
-        }
+        .form-group { margin: 0; }
         label {
             display: block;
-            font-size: 0.9rem;
-            margin-bottom: 8px;
-            color: var(--text-main);
+            font-size: 0.85rem;
+            margin-bottom: 6px;
+            color: var(--text-dim);
         }
         select, input {
             width: 100%;
             background-color: var(--panel-bg);
             border: 1px solid var(--border-color);
             color: var(--text-main);
-            padding: 10px;
+            padding: 9px 10px;
             border-radius: 6px;
-            font-size: 0.95rem;
+            font-size: 0.9rem;
             outline: none;
         }
         select:focus, input:focus {
             border-color: var(--blue);
-            box-shadow: 0 0 0 3px rgba(31, 111, 235, 0.3);
+            box-shadow: 0 0 0 3px rgba(31, 111, 235, 0.25);
         }
         .btn-group {
             display: grid;
             grid-template-columns: 1fr 1fr 1fr;
-            gap: 10px;
-            margin-top: 20px;
+            gap: 8px;
         }
         button {
-            padding: 10px;
+            padding: 9px;
             border-radius: 6px;
             font-weight: 600;
             cursor: pointer;
             border: 1px solid transparent;
-            font-size: 0.9rem;
+            font-size: 0.88rem;
             transition: all 0.2s;
         }
         .btn-reset { background-color: var(--blue); color: white; }
@@ -150,17 +201,67 @@
         .btn-state { background-color: var(--panel-bg); color: var(--text-main); border-color: var(--border-color); }
         .btn-state:hover { background-color: #30363d; }
 
-        /* State Display (Right Panel) */
+        /* FIX 6: Final Score Panel */
+        #final-score-panel {
+            display: none;
+            background-color: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 14px;
+        }
+        #final-score-panel.visible { display: block; }
+        .score-header {
+            font-size: 0.85rem;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-weight: 600;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .score-final-number {
+            font-size: 2rem;
+            font-weight: 700;
+            font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, Liberation Mono, monospace;
+            margin-bottom: 12px;
+        }
+        .score-breakdown {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px 16px;
+        }
+        .score-line {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.8rem;
+        }
+        .score-line .slabel { color: var(--text-dim); }
+        .score-line .sval   { color: var(--text-main); font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, Liberation Mono, monospace; }
+        .failure-type-badge {
+            display: inline-block;
+            margin-top: 10px;
+            padding: 3px 10px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            background: rgba(31,111,235,0.15);
+            color: #58a6ff;
+            border: 1px solid rgba(88,166,255,0.3);
+        }
+
+        /* Right Panel sections */
         .services-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-            gap: 12px;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 10px;
         }
         .service-card {
             background-color: var(--panel-bg);
             border: 1px solid var(--border-color);
             border-radius: 6px;
-            padding: 12px;
+            padding: 11px 13px;
         }
         .service-card.placeholder {
             border-style: dashed;
@@ -168,43 +269,42 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            height: 80px;
+            height: 72px;
             color: var(--text-dim);
-            font-size: 0.85rem;
+            font-size: 0.82rem;
         }
         .service-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 8px;
+            margin-bottom: 7px;
         }
-        .service-name { font-weight: 600; font-size: 0.95rem; }
+        .service-name { font-weight: 600; font-size: 0.9rem; }
         .status-badge {
-            font-size: 0.7rem;
+            font-size: 0.65rem;
             padding: 2px 6px;
             border-radius: 4px;
             text-transform: uppercase;
-            font-weight: bold;
+            font-weight: 700;
         }
-        .status-up { background: rgba(35, 134, 54, 0.15); color: #3fb950; border: 1px solid rgba(63, 185, 80, 0.4); }
-        .status-degraded { background: rgba(210, 153, 34, 0.15); color: #d29922; border: 1px solid rgba(210, 153, 34, 0.4); }
-        .status-down { background: rgba(218, 54, 51, 0.15); color: #f85149; border: 1px solid rgba(248, 81, 73, 0.4); }
+        .status-up       { background: rgba(35,134,54,0.15);  color: #3fb950; border: 1px solid rgba(63,185,80,0.4); }
+        .status-degraded { background: rgba(210,153,34,0.15); color: #d29922; border: 1px solid rgba(210,153,34,0.4); }
+        .status-down     { background: rgba(218,54,51,0.15);  color: #f85149; border: 1px solid rgba(248,81,73,0.4); }
 
         .service-metrics {
             font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, Liberation Mono, monospace;
-            font-size: 0.8rem;
+            font-size: 0.78rem;
             color: var(--text-dim);
         }
 
-        /* Logs & Alerts */
         .terminal {
             background-color: var(--terminal-bg);
             border: 1px solid var(--border-color);
             border-radius: 6px;
-            padding: 12px;
+            padding: 11px 13px;
             font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, Liberation Mono, monospace;
-            font-size: 0.85rem;
-            min-height: 120px;
+            font-size: 0.82rem;
+            min-height: 100px;
         }
         .terminal.placeholder {
             color: rgba(63, 185, 80, 0.4);
@@ -212,62 +312,66 @@
             align-items: center;
             justify-content: center;
         }
-        .log-line { margin-bottom: 4px; color: #7d8590; }
+        .log-line { margin-bottom: 3px; color: #7d8590; }
         .log-line::before { content: "> "; color: var(--blue); }
         .log-content { color: var(--text-main); }
 
-        .alerts-container {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-        }
+        .alerts-container { display: flex; flex-wrap: wrap; gap: 7px; }
         .alert-pill {
-            background: rgba(218, 54, 51, 0.1);
+            background: rgba(218,54,51,0.10);
             color: #f85149;
-            border: 1px solid rgba(248, 81, 73, 0.4);
-            padding: 4px 10px;
+            border: 1px solid rgba(248,81,73,0.4);
+            padding: 3px 10px;
             border-radius: 100px;
-            font-size: 0.8rem;
+            font-size: 0.78rem;
+        }
+        .alert-pill.warn {
+            background: rgba(210,153,34,0.10);
+            color: #d29922;
+            border: 1px solid rgba(210,153,34,0.4);
+        }
+        .alert-pill.info {
+            background: rgba(31,111,235,0.10);
+            color: #58a6ff;
+            border: 1px solid rgba(88,166,255,0.3);
         }
         .alert-pill.placeholder {
-            background: rgba(110, 118, 129, 0.1);
+            background: rgba(110,118,129,0.1);
             color: var(--text-dim);
-            border: 1px solid rgba(110, 118, 129, 0.4);
+            border: 1px solid rgba(110,118,129,0.4);
         }
 
-        /* Metrics Bars */
         .metrics-grid {
             display: grid;
             grid-template-columns: 1fr 1fr 1fr;
-            gap: 20px;
+            gap: 16px;
         }
-        .metric-item { display: flex; flex-direction: column; gap: 8px; }
-        .metric-label { font-size: 0.8rem; color: var(--text-dim); display: flex; justify-content: space-between; }
-        .progress-bg { height: 6px; background: #30363d; border-radius: 3px; overflow: hidden; }
-        .progress-fill { height: 100%; transition: width 0.3s ease; }
-        .fill-health { background-color: var(--green); }
-        .fill-stability { background-color: var(--blue); }
-        .fill-strain { background-color: var(--yellow); }
+        .metric-item { display: flex; flex-direction: column; gap: 6px; }
+        .metric-label { font-size: 0.78rem; color: var(--text-dim); display: flex; justify-content: space-between; }
+        .progress-bg { height: 5px; background: #30363d; border-radius: 3px; overflow: hidden; }
+        .progress-fill { height: 100%; transition: width 0.3s ease; border-radius: 3px; }
+        .fill-health    { background-color: #3fb950; }
+        .fill-stability { background-color: #58a6ff; }
+        .fill-strain    { background-color: var(--yellow); }
 
-        /* Episode Stats Bar */
         footer {
-            height: 40px;
+            height: 38px;
             background-color: #161b22;
             border-top: 1px solid var(--border-color);
             display: flex;
             align-items: center;
             padding: 0 20px;
-            font-size: 0.85rem;
+            font-size: 0.82rem;
             color: var(--text-dim);
-            gap: 30px;
+            gap: 28px;
             width: 100%;
+            flex-shrink: 0;
         }
-        .stat-item b { color: var(--text-main); margin-left: 5px; }
-        .status-active { color: #3fb950 !important; }
+        .stat-item b { color: var(--text-main); margin-left: 4px; }
+        .status-active     { color: #3fb950 !important; }
         .status-terminated { color: #f85149 !important; }
 
-        /* Scrollbars */
-        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar { width: 7px; }
         ::-webkit-scrollbar-track { background: var(--bg-color); }
         ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 10px; }
         ::-webkit-scrollbar-thumb:hover { background: #484f58; }
@@ -275,22 +379,23 @@
 </head>
 <body>
 
-    <header>
-        <div class="header-title">
-            AI Incident Response Environment
-            <span class="live-badge">LIVE</span>
-        </div>
-        <div style="font-size: 0.8rem; color: var(--text-dim)">v1.0.0-stable</div>
-    </header>
+<header>
+    <div class="header-title">
+        AI Incident Response Environment
+        <span class="live-badge">LIVE</span>
+    </div>
+    <div style="font-size: 0.78rem; color: var(--text-dim)">OpenEnv Spec v0.2.0</div>
+</header>
 
-    <main>
-        <!-- Controls Panel -->
-        <div class="panel left-panel">
-            <div class="section-title">Operations Control</div>
-            
-            <div class="form-group">
-                <label for="task-select">Select Task Instance</label>
-                <select id="task-select">
+<main>
+    <!-- Controls Panel -->
+    <div class="panel left-panel">
+
+        <!-- FIX 6: Task description shown on select -->
+        <div>
+            <div class="section-title">Task Instance</div>
+            <div class="form-group" style="margin-bottom: 10px;">
+                <select id="task-select" onchange="onTaskChange()">
                     <option value="easy-auth-down">easy-auth-down</option>
                     <option value="medium-payments-degraded">medium-payments-degraded</option>
                     <option value="hard-bad-deployment">hard-bad-deployment</option>
@@ -299,9 +404,24 @@
                     <option value="hard-latent-root-cause">hard-latent-root-cause</option>
                 </select>
             </div>
+            <div class="task-description-card">
+                <div class="task-id">
+                    <span id="desc-id">easy-auth-down</span>
+                    <span id="desc-difficulty" class="difficulty-badge diff-easy">Easy</span>
+                </div>
+                <div id="desc-text" class="task-desc">
+                    The authentication service is down. Restart it to restore service.
+                </div>
+                <div class="task-goal"><b>Goal:</b> <span id="desc-goal">Restore all services to UP state</span></div>
+                <div class="task-steps"><b>Max steps:</b> <span id="desc-steps">5</span></div>
+            </div>
+        </div>
 
-            <div class="form-group">
-                <label for="action-select">Remediation Action</label>
+        <!-- Action controls -->
+        <div>
+            <div class="section-title">Remediation Action</div>
+            <div class="form-group" style="margin-bottom: 10px;">
+                <label for="action-select">Action</label>
                 <select id="action-select">
                     <option value="restart_service">restart_service</option>
                     <option value="rollback_service">rollback_service</option>
@@ -315,212 +435,348 @@
                     <option value="escalate">escalate</option>
                 </select>
             </div>
-
             <div class="form-group">
-                <label for="target-input">Target Resource (service name / db)</label>
+                <label for="target-input">Target Resource</label>
                 <input type="text" id="target-input" placeholder="e.g. auth, payments, db">
             </div>
-
-            <div class="btn-group">
+            <div class="btn-group" style="margin-top: 10px;">
                 <button class="btn-reset" onclick="resetEnv()">Reset</button>
                 <button class="btn-step" onclick="stepEnv()">Step</button>
                 <button class="btn-state" onclick="getState()">Get State</button>
             </div>
         </div>
 
-        <!-- Monitoring Panel -->
-        <div class="panel right-panel">
-            <div>
-                <div class="section-title">System Health & Metrics</div>
-                <div class="metrics-grid">
-                    <div class="metric-item">
-                        <div class="metric-label">Health <span id="health-val">0%</span></div>
-                        <div class="progress-bg"><div id="health-bar" class="progress-fill fill-health" style="width: 0%"></div></div>
-                    </div>
-                    <div class="metric-item">
-                        <div class="metric-label">Stability <span id="stability-val">0%</span></div>
-                        <div class="progress-bg"><div id="stability-bar" class="progress-fill fill-stability" style="width: 0%"></div></div>
-                    </div>
-                    <div class="metric-item">
-                        <div class="metric-label">Infrastructure Strain <span id="strain-val">0%</span></div>
-                        <div class="progress-bg"><div id="strain-bar" class="progress-fill fill-strain" style="width: 0%"></div></div>
-                    </div>
-                </div>
+        <!-- FIX 6: Final Score Panel — shown when episode ends -->
+        <div id="final-score-panel">
+            <div class="score-header">
+                Episode Result
+                <span id="episode-outcome" style="font-size:0.7rem; padding: 2px 8px; border-radius:4px; background:rgba(218,54,51,0.15); color:#f85149; border:1px solid rgba(248,81,73,0.3); font-weight:700; text-transform:uppercase;">Terminated</span>
             </div>
-
-            <div>
-                <div class="section-title">Service Topology</div>
-                <div id="services-container" class="services-grid">
-                    <!-- Placeholder cards -->
-                    <div class="service-card placeholder">Awaiting reset...</div>
-                    <div class="service-card placeholder">Awaiting reset...</div>
-                    <div class="service-card placeholder">Awaiting reset...</div>
-                </div>
+            <div class="score-final-number" id="final-score-number">—</div>
+            <div class="score-breakdown">
+                <div class="score-line"><span class="slabel">Success</span><span class="sval" id="sc-success">—</span></div>
+                <div class="score-line"><span class="slabel">Efficiency</span><span class="sval" id="sc-efficiency">—</span></div>
+                <div class="score-line"><span class="slabel">Cost</span><span class="sval" id="sc-cost">—</span></div>
+                <div class="score-line"><span class="slabel">Stability</span><span class="sval" id="sc-stability">—</span></div>
+                <div class="score-line"><span class="slabel">Sequence</span><span class="sval" id="sc-sequence">—</span></div>
+                <div class="score-line"><span class="slabel">Steps used</span><span class="sval" id="sc-steps">—</span></div>
             </div>
+            <div id="failure-type-badge" class="failure-type-badge">—</div>
+        </div>
 
-            <div>
-                <div class="section-title">Active Alerts</div>
-                <div id="alerts-container" class="alerts-container">
-                    <div class="alert-pill placeholder">No active alerts</div>
+    </div>
+
+    <!-- Monitoring Panel -->
+    <div class="panel right-panel">
+
+        <div>
+            <div class="section-title">System Health &amp; Metrics</div>
+            <div class="metrics-grid">
+                <div class="metric-item">
+                    <div class="metric-label">Health <span id="health-val">0%</span></div>
+                    <div class="progress-bg"><div id="health-bar" class="progress-fill fill-health" style="width:0%"></div></div>
                 </div>
-            </div>
-
-            <div>
-                <div class="section-title">Telemetry Stream</div>
-                <div id="logs-container" class="terminal placeholder">
-                    Waiting for telemetry...
+                <div class="metric-item">
+                    <div class="metric-label">Stability <span id="stability-val">0%</span></div>
+                    <div class="progress-bg"><div id="stability-bar" class="progress-fill fill-stability" style="width:0%"></div></div>
+                </div>
+                <div class="metric-item">
+                    <div class="metric-label">Strain <span id="strain-val">0%</span></div>
+                    <div class="progress-bg"><div id="strain-bar" class="progress-fill fill-strain" style="width:0%"></div></div>
                 </div>
             </div>
         </div>
-    </main>
 
-    <footer>
-        <div class="stat-item">Step: <b id="step-count">0</b></div>
-        <div class="stat-item">Cumulative Reward: <b id="total-reward">0.00</b></div>
-        <div class="stat-item">Status: <b id="done-status" class="status-active">ACTIVE</b></div>
-        <div style="margin-left: auto; color: var(--blue)">OpenEnv Spec v0.2.0 Compliant</div>
-    </footer>
+        <div>
+            <div class="section-title">Service Topology</div>
+            <div id="services-container" class="services-grid">
+                <div class="service-card placeholder">Awaiting reset...</div>
+                <div class="service-card placeholder">Awaiting reset...</div>
+                <div class="service-card placeholder">Awaiting reset...</div>
+            </div>
+        </div>
 
-    <script>
-        let currentReward = 0.0;
-        const BASE_URL = window.location.origin;
+        <div>
+            <div class="section-title">Active Alerts</div>
+            <div id="alerts-container" class="alerts-container">
+                <div class="alert-pill placeholder">No active alerts</div>
+            </div>
+        </div>
 
-        function updateUI(state, lastReward = null) {
-            // Update stats
-            document.getElementById('step-count').innerText = state.time_step;
-            if (lastReward !== null) {
-                currentReward += lastReward;
-                document.getElementById('total-reward').innerText = currentReward.toFixed(2);
-            }
-            
-            // Metrics
-            const health = (state.system_health * 100).toFixed(0);
-            const stability = (state.system_stability * 100).toFixed(0);
-            const strain = (state.system_strain * 100).toFixed(0);
+        <div>
+            <div class="section-title">Telemetry Stream</div>
+            <div id="logs-container" class="terminal placeholder">
+                Waiting for telemetry...
+            </div>
+        </div>
 
-            document.getElementById('health-val').innerText = health + '%';
-            document.getElementById('health-bar').style.width = health + '%';
-            document.getElementById('stability-val').innerText = stability + '%';
-            document.getElementById('stability-bar').style.width = stability + '%';
-            document.getElementById('strain-val').innerText = strain + '%';
-            document.getElementById('strain-bar').style.width = strain + '%';
+    </div>
+</main>
 
-            // Services
-            const sCont = document.getElementById('services-container');
-            if (state.services && state.services.length > 0) {
-                sCont.innerHTML = '';
-                state.services.forEach(s => {
-                    const card = document.createElement('div');
-                    card.className = 'service-card';
-                    const statusClass = 'status-' + s.status.toLowerCase();
-                    card.innerHTML = `
-                        <div class="service-header">
-                            <span class="service-name">${s.name}</span>
-                            <span class="status-badge ${statusClass}">${s.status}</span>
-                        </div>
-                        <div class="service-metrics">
-                            latency: ${s.latency.toFixed(1)}ms<br>
-                            errors: ${(s.error_rate * 100).toFixed(1)}%
-                        </div>
-                    `;
-                    sCont.appendChild(card);
-                });
-            } else {
-                sCont.innerHTML = `
-                    <div class="service-card placeholder">Awaiting reset...</div>
-                    <div class="service-card placeholder">Awaiting reset...</div>
-                    <div class="service-card placeholder">Awaiting reset...</div>
+<footer>
+    <div class="stat-item">Step: <b id="step-count">0</b></div>
+    <div class="stat-item">Cumulative Reward: <b id="total-reward">0.00</b></div>
+    <div class="stat-item">Episode: <b id="done-status" class="status-active">ACTIVE</b></div>
+    <div class="stat-item">Bad Actions: <b id="bad-actions">0</b></div>
+    <div class="stat-item">Total Cost: <b id="total-cost">0.0</b></div>
+</footer>
+
+<script>
+    // FIX 6: Task metadata for description card
+    const TASK_META = {
+        "easy-auth-down": {
+            difficulty: "Easy",
+            diffClass: "diff-easy",
+            desc: "The authentication service is down. Restart it to restore service.",
+            goal: "Restore all services to UP state",
+            steps: 5
+        },
+        "medium-payments-degraded": {
+            difficulty: "Medium",
+            diffClass: "diff-medium",
+            desc: "The payments service is degraded due to high load. Scale it up to restore performance without exceeding cost limits.",
+            goal: "Stabilize system with minimal cost",
+            steps: 8
+        },
+        "hard-bad-deployment": {
+            difficulty: "Hard",
+            diffClass: "diff-hard",
+            desc: "auth-v2.1.0 introduced a goroutine leak. Logs heavily implicate the DB — but the DB is healthy. Optimizing the DB will make things worse. Diagnose auth fully before rolling back.",
+            goal: "Roll back the faulty auth deployment after proper diagnosis",
+            steps: 10
+        },
+        "hard-cascading-failure": {
+            difficulty: "Hard",
+            diffClass: "diff-hard",
+            desc: "DB degradation is causing auth to go DOWN and payments to degrade. Misleading logs blame payments and auth. Environment degrades further every 2 steps — act fast.",
+            goal: "Resolve cascading failures by fixing root cause (DB)",
+            steps: 10
+        },
+        "hard-cascading-ambiguous": {
+            difficulty: "Hard",
+            diffClass: "diff-hard",
+            desc: "Both auth and payments are degraded, frontend is down. A shared DB connection pool was broken by payments-v3.4.1. Fix order matters — fixing auth first triggers re-degradation.",
+            goal: "Identify and rollback the root cause deployment (payments)",
+            steps: 15
+        },
+        "hard-latent-root-cause": {
+            difficulty: "Hard",
+            diffClass: "diff-hard",
+            desc: "Auth is visibly degraded but the true root cause is a latent issue in the payments persistence layer. All surface logs blame auth. Fixing auth gives a fake recovery that degrades again in 2 steps.",
+            goal: "Identify the hidden root cause (payments) and fix it",
+            steps: 12
+        }
+    };
+
+    let currentReward = 0.0;
+    const BASE_URL = window.location.origin;
+
+    function onTaskChange() {
+        const taskId = document.getElementById('task-select').value;
+        const meta = TASK_META[taskId];
+        if (!meta) return;
+        document.getElementById('desc-id').innerText = taskId;
+        document.getElementById('desc-difficulty').innerText = meta.difficulty;
+        document.getElementById('desc-difficulty').className = 'difficulty-badge ' + meta.diffClass;
+        document.getElementById('desc-text').innerText = meta.desc;
+        document.getElementById('desc-goal').innerText = meta.goal;
+        document.getElementById('desc-steps').innerText = meta.steps;
+        // Hide final score panel on task switch
+        document.getElementById('final-score-panel').classList.remove('visible');
+    }
+
+    function showFinalScore(scoreBreakdown, stepCount) {
+        if (!scoreBreakdown) return;
+        const panel = document.getElementById('final-score-panel');
+        panel.classList.add('visible');
+
+        const finalScore = scoreBreakdown.final_score ?? 0;
+        const el = document.getElementById('final-score-number');
+        el.innerText = (finalScore * 100).toFixed(1) + '%';
+        // Color the score
+        if (finalScore >= 0.7)      el.style.color = '#3fb950';
+        else if (finalScore >= 0.4) el.style.color = '#d29922';
+        else                         el.style.color = '#f85149';
+
+        document.getElementById('sc-success').innerText   = fmt(scoreBreakdown.success_score);
+        document.getElementById('sc-efficiency').innerText = fmt(scoreBreakdown.efficiency_score);
+        document.getElementById('sc-cost').innerText       = fmt(scoreBreakdown.cost_efficiency_score);
+        document.getElementById('sc-stability').innerText  = fmt(scoreBreakdown.stability_score);
+        document.getElementById('sc-sequence').innerText   = fmt(scoreBreakdown.sequence_score);
+        document.getElementById('sc-steps').innerText      = stepCount ?? '—';
+
+        const outcomeEl = document.getElementById('episode-outcome');
+        if (finalScore >= 0.7) {
+            outcomeEl.innerText = 'Success';
+            outcomeEl.style.background = 'rgba(35,134,54,0.15)';
+            outcomeEl.style.color = '#3fb950';
+            outcomeEl.style.borderColor = 'rgba(63,185,80,0.4)';
+        } else {
+            outcomeEl.innerText = 'Terminated';
+            outcomeEl.style.background = 'rgba(218,54,51,0.15)';
+            outcomeEl.style.color = '#f85149';
+            outcomeEl.style.borderColor = 'rgba(248,81,73,0.3)';
+        }
+    }
+
+    function fmt(v) {
+        if (v === undefined || v === null) return '—';
+        return (v * 100).toFixed(1) + '%';
+    }
+
+    function alertClass(text) {
+        if (text.startsWith('CRITICAL') || text.startsWith('ERROR')) return 'alert-pill';
+        if (text.startsWith('WARNING') || text.startsWith('WARN')) return 'alert-pill warn';
+        return 'alert-pill info';
+    }
+
+    function updateUI(state, lastReward = null, scoreBreakdown = null) {
+        document.getElementById('step-count').innerText = state.time_step;
+        document.getElementById('bad-actions').innerText = state.bad_actions ?? 0;
+        document.getElementById('total-cost').innerText = (state.total_cost ?? 0).toFixed(1);
+
+        if (lastReward !== null) {
+            currentReward += lastReward;
+            document.getElementById('total-reward').innerText = currentReward.toFixed(2);
+        }
+
+        const health    = ((state.system_health    ?? 0) * 100).toFixed(0);
+        const stability = ((state.system_stability ?? 0) * 100).toFixed(0);
+        const strain    = ((state.system_strain    ?? 0) * 100).toFixed(0);
+
+        document.getElementById('health-val').innerText    = health + '%';
+        document.getElementById('health-bar').style.width  = health + '%';
+        document.getElementById('stability-val').innerText = stability + '%';
+        document.getElementById('stability-bar').style.width = stability + '%';
+        document.getElementById('strain-val').innerText    = strain + '%';
+        document.getElementById('strain-bar').style.width  = strain + '%';
+
+        // Services
+        const sCont = document.getElementById('services-container');
+        if (state.services && state.services.length > 0) {
+            sCont.innerHTML = '';
+            state.services.forEach(s => {
+                const card = document.createElement('div');
+                card.className = 'service-card';
+                const statusClass = 'status-' + s.status.toLowerCase();
+                card.innerHTML = `
+                    <div class="service-header">
+                        <span class="service-name">${s.name}</span>
+                        <span class="status-badge ${statusClass}">${s.status}</span>
+                    </div>
+                    <div class="service-metrics">
+                        latency: ${s.latency.toFixed(1)}ms<br>
+                        errors: ${(s.error_rate * 100).toFixed(1)}%
+                    </div>
                 `;
-            }
-
-            // Alerts
-            const aCont = document.getElementById('alerts-container');
-            if (state.alerts && state.alerts.length > 0) {
-                aCont.innerHTML = '';
-                state.alerts.forEach(a => {
-                    const pill = document.createElement('div');
-                    pill.className = 'alert-pill';
-                    pill.innerText = a;
-                    aCont.appendChild(pill);
-                });
-            } else {
-                aCont.innerHTML = '<div class="alert-pill placeholder">No active alerts</div>';
-            }
-
-            // Logs
-            const lCont = document.getElementById('logs-container');
-            const logs = state.logs || [];
-            if (logs.length > 0) {
-                lCont.classList.remove('placeholder');
-                lCont.innerHTML = '';
-                const recentLogs = logs.slice(-5);
-                recentLogs.forEach(l => {
-                    const line = document.createElement('div');
-                    line.className = 'log-line';
-                    line.innerHTML = `<span class="log-content">${l}</span>`;
-                    lCont.appendChild(line);
-                });
-            } else {
-                lCont.classList.add('placeholder');
-                lCont.innerHTML = 'Waiting for telemetry...';
-            }
+                sCont.appendChild(card);
+            });
+        } else {
+            sCont.innerHTML = `
+                <div class="service-card placeholder">Awaiting reset...</div>
+                <div class="service-card placeholder">Awaiting reset...</div>
+                <div class="service-card placeholder">Awaiting reset...</div>
+            `;
         }
 
-        async function resetEnv() {
-            const taskId = document.getElementById('task-select').value;
-            currentReward = 0.0;
-            document.getElementById('total-reward').innerText = '0.00';
-            document.getElementById('step-count').innerText = '0';
-            const statusEl = document.getElementById('done-status');
-            statusEl.innerText = 'ACTIVE';
-            statusEl.className = 'status-active';
-
-            try {
-                const res = await fetch(`${BASE_URL}/reset/${taskId}`, { method: 'POST' });
-                const state = await res.json();
-                updateUI(state);
-            } catch (e) {
-                console.error('Reset failed', e);
-                // alert('Connection to environment failed. Ensure server is running.');
-            }
+        // Alerts
+        const aCont = document.getElementById('alerts-container');
+        if (state.alerts && state.alerts.length > 0) {
+            aCont.innerHTML = '';
+            state.alerts.forEach(a => {
+                const pill = document.createElement('div');
+                pill.className = alertClass(a);
+                pill.innerText = a;
+                aCont.appendChild(pill);
+            });
+        } else {
+            aCont.innerHTML = '<div class="alert-pill placeholder">No active alerts</div>';
         }
 
-        async function stepEnv() {
-            const taskId = document.getElementById('task-select').value;
-            const actionType = document.getElementById('action-select').value;
-            const target = document.getElementById('target-input').value || 'none';
-
-            try {
-                const res = await fetch(`${BASE_URL}/step/${taskId}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action_type: actionType, target: target })
-                });
-                const result = await res.json();
-                updateUI(result.state, result.reward);
-                
-                if (result.done) {
-                    const statusEl = document.getElementById('done-status');
-                    statusEl.innerText = 'TERMINATED';
-                    statusEl.className = 'status-terminated';
-                }
-            } catch (e) {
-                console.error('Step failed', e);
-            }
+        // Logs
+        const lCont = document.getElementById('logs-container');
+        const logs = state.logs || [];
+        if (logs.length > 0) {
+            lCont.classList.remove('placeholder');
+            lCont.innerHTML = '';
+            logs.slice(-6).forEach(l => {
+                const line = document.createElement('div');
+                line.className = 'log-line';
+                line.innerHTML = `<span class="log-content">${l}</span>`;
+                lCont.appendChild(line);
+            });
+        } else {
+            lCont.classList.add('placeholder');
+            lCont.innerHTML = 'Waiting for telemetry...';
         }
 
-        async function getState() {
-            const taskId = document.getElementById('task-select').value;
-            try {
-                const res = await fetch(`${BASE_URL}/state/${taskId}`);
-                const state = await res.json();
-                updateUI(state);
-            } catch (e) {
-                console.error('Get state failed', e);
-            }
+        // FIX 6: Show final score if available
+        if (scoreBreakdown) {
+            showFinalScore(scoreBreakdown, state.time_step);
         }
+    }
 
-        document.addEventListener('DOMContentLoaded', resetEnv);
-    </script>
+    async function resetEnv() {
+        const taskId = document.getElementById('task-select').value;
+        currentReward = 0.0;
+        document.getElementById('total-reward').innerText = '0.00';
+        document.getElementById('step-count').innerText = '0';
+        document.getElementById('bad-actions').innerText = '0';
+        document.getElementById('total-cost').innerText = '0.0';
+        document.getElementById('final-score-panel').classList.remove('visible');
+        const statusEl = document.getElementById('done-status');
+        statusEl.innerText = 'ACTIVE';
+        statusEl.className = 'status-active';
+
+        try {
+            const res = await fetch(`${BASE_URL}/reset/${taskId}`, { method: 'POST' });
+            const state = await res.json();
+            updateUI(state);
+        } catch (e) {
+            console.error('Reset failed', e);
+        }
+    }
+
+    async function stepEnv() {
+        const taskId    = document.getElementById('task-select').value;
+        const actionType = document.getElementById('action-select').value;
+        const target    = document.getElementById('target-input').value || 'none';
+
+        try {
+            const res = await fetch(`${BASE_URL}/step/${taskId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action_type: actionType, target: target })
+            });
+            const result = await res.json();
+            const breakdown = result.info?.score_breakdown ?? null;
+            updateUI(result.state, result.reward, breakdown);
+
+            if (result.done) {
+                const statusEl = document.getElementById('done-status');
+                statusEl.innerText = 'TERMINATED';
+                statusEl.className = 'status-terminated';
+            }
+        } catch (e) {
+            console.error('Step failed', e);
+        }
+    }
+
+    async function getState() {
+        const taskId = document.getElementById('task-select').value;
+        try {
+            const res = await fetch(`${BASE_URL}/state/${taskId}`);
+            const state = await res.json();
+            updateUI(state);
+        } catch (e) {
+            console.error('Get state failed', e);
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        onTaskChange();
+        resetEnv();
+    });
+</script>
 </body>
 </html>
