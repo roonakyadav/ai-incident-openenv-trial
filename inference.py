@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # --- Fix 4: Environment variable handling ---
-API_BASE_URL = os.getenv("API_BASE_URL")
+API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
 ENV_URL = os.getenv("ENV_URL", "https://roonakyadav-ai-incident-openenv-trial.hf.space")
 MODEL_NAME = os.getenv("MODEL_NAME")
 HF_TOKEN = os.getenv("HF_TOKEN")
@@ -259,11 +259,7 @@ def main():
     task_ids = ["easy-auth-down", "medium-payments-degraded", "hard-cascading-failure", "hard-bad-deployment", "hard-cascading-ambiguous", "hard-latent-root-cause"]
     results = [run_episode(task_id) for task_id in task_ids]
 
-    # Final summary
-    print("\nFINAL SUMMARY")
-    print("task_id | score | steps | success")
-    for r in results:
-        print(f"{r['task_id']} | {r['score']:.2f} | {r['steps']} | {'true' if r['success'] else 'false'}")
+
 
 if __name__ == "__main__":
     main()
