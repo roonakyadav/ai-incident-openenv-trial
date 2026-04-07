@@ -10,7 +10,7 @@ load_dotenv()
 
 # --- Fix 4: Environment variable handling ---
 API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
-ENV_URL = os.getenv("ENV_URL", "https://roonakyadav-ai-incident-openenv-trial.hf.space")
+ENV_URL = os.getenv("ENV_URL", "https://roonakyadav-ai-incident-openenv-final.hf.space")
 MODEL_NAME = os.getenv("MODEL_NAME")
 HF_TOKEN = os.getenv("HF_TOKEN")
 SUCCESS_SCORE_THRESHOLD = 0.6
