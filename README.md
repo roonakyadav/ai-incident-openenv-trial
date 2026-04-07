@@ -277,7 +277,7 @@ docker run -p 7860:7860 ai-incident-openenv
 ### Inference (Hugging Face Space)
 
 ```bash
-API_BASE_URL=https://roonakyadav-ai-incident-openenv-trial.hf.space \
+API_BASE_URL=https://roonakyadav-ai-incident-openenv-final.hf.space \
 MODEL_NAME=llama-3.1-8b-instant \
 HF_TOKEN=your_key \
 python3 inference.py
