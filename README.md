@@ -294,6 +294,6 @@ python3 inference.py
 | `/state` | GET | — | Read current state (no side effects) |
 | `/tasks` | GET | — | List all available tasks |
 
-**Live environment:** https://roonakyadav-ai-incident-openenv-trial.hf.space
+**Live environment:** https://roonakyadav-ai-incident-openenv-final.hf.space
 
 **GitHub:** https://github.com/roonakyadav/meta-hackathon
